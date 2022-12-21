@@ -796,8 +796,7 @@ class CultioLitModel(pl.LightningModule):
             params_list,
             lr=self.learning_rate,
             weight_decay=self.weight_decay,
-            eps=self.eps,
-            amsgrad=True
+            eps=self.eps
         )
         lr_scheduler = ReduceLROnPlateau(
             optimizer,
