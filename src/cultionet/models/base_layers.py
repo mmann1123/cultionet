@@ -39,7 +39,8 @@ class ConvBlock2d(torch.nn.Module):
         kernel_size: int,
         padding: int = 0,
         dilation: int = 1,
-        add_activation: bool = True
+        add_activation: bool = True,
+        activation_type: str = 'LeakyReLU'
     ):
         super(ConvBlock2d, self).__init__()
 
@@ -55,7 +56,9 @@ class ConvBlock2d(torch.nn.Module):
             torch.nn.BatchNorm2d(out_channels)
         ]
         if add_activation:
-            layers += [torch.nn.LeakyReLU(inplace=False)]
+            layers += [
+                getattr(torch.nn, activation_type)(inplace=False)
+            ]
 
         self.seq = torch.nn.Sequential(*layers)
 
@@ -525,7 +528,7 @@ class ResidualConv(torch.nn.Module):
         self.fractal_weights = None
         if fractal_attention:
             self.fractal_weights = FractalAttention(
-                in_channels=in_channels,
+                in_channels=init_in_channels,
                 out_channels=out_channels
             )
             self.gamma = torch.nn.Parameter(torch.ones(1))
