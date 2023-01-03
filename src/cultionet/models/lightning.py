@@ -2,11 +2,7 @@ import typing as T
 from pathlib import Path
 import json
 
-from ..losses import (
-    CrossEntropyLoss,
-    MSELoss,
-    TanimotoDistLoss
-)
+from ..losses import TanimotoComplementLoss
 from .cultio import CultioNet
 from .maskcrnn import BFasterRCNN
 from . import model_utils
@@ -394,8 +390,8 @@ class TemperatureScaling(pl.LightningModule):
                 f.write(json.dumps(temperature_scales))
 
     def configure_loss(self):
-        self.edge_loss = TanimotoDistLoss()
-        self.crop_loss = TanimotoDistLoss()
+        self.edge_loss = TanimotoComplementLoss()
+        self.crop_loss = TanimotoComplementLoss()
 
     def configure_optimizers(self):
         optimizer = torch.optim.LBFGS(
@@ -435,6 +431,7 @@ class CultioLitModel(pl.LightningModule):
         learning_rate: float = 1e-3,
         weight_decay: float = 1e-4,
         eps: float = 1e-8,
+        depth: int = 5,
         ckpt_name: str = 'last',
         model_name: str = 'cultionet',
         model_type: str = 'ResUNet3Psi',
@@ -465,6 +462,7 @@ class CultioLitModel(pl.LightningModule):
             self.edge_class = edge_class
         else:
             self.edge_class = num_classes
+        self.depth = depth
 
         self.cultionet_model = CultioNet(
             ds_features=num_features,
@@ -784,13 +782,13 @@ class CultioLitModel(pl.LightningModule):
             )
 
     def configure_loss(self):
-        self.dist_loss = TanimotoDistLoss()
-        self.edge_loss = TanimotoDistLoss()
-        self.crop_loss = TanimotoDistLoss()
-        self.crop_star_loss = TanimotoDistLoss()
+        self.dist_loss = TanimotoComplementLoss()
+        self.edge_loss = TanimotoComplementLoss()
+        self.crop_loss = TanimotoComplementLoss()
+        self.crop_star_loss = TanimotoComplementLoss()
         if self.num_classes > 2:
-            self.crop_type_star_loss = TanimotoDistLoss()
-            self.crop_type_loss = TanimotoDistLoss()
+            self.crop_type_star_loss = TanimotoComplementLoss()
+            self.crop_type_loss = TanimotoComplementLoss()
 
     def configure_optimizers(self):
         params_list = list(self.cultionet_model.parameters())

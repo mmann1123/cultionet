@@ -111,7 +111,7 @@ class TanimotoComplementLoss(torch.nn.Module):
 
         length = inputs.shape[1]
 
-        def tanimoto(y: torch.Tensor, yhat: torch.Tensor) -> torch.Tensor:
+        def tanimoto_loss(y: torch.Tensor, yhat: torch.Tensor) -> torch.Tensor:
             scale = 1.0 / self.depth
             tpl = (y * yhat).sum(dim=0)
             numerator = tpl + self.smooth
@@ -122,13 +122,14 @@ class TanimotoComplementLoss(torch.nn.Module):
                 b = -(2.0 * a - 1.0)
                 denominator = denominator + torch.reciprocal((a * sq_sum) + (b * tpl) + self.smooth)
 
-            return numerator * denominator * scale
+            return 1.0 - (numerator * denominator * scale)
 
-        score = tanimoto(targets, inputs)
+        loss = tanimoto_loss(targets, inputs)
         if inputs.shape[1] == 1:
-            score = (score + tanimoto(1.0 - targets, 1.0 - inputs)) * 0.5
+            compl_loss = tanimoto_loss(1.0 - targets, 1.0 - inputs)
+            loss = (loss + compl_loss) * 0.5
 
-        return (1.0 - score).mean()
+        return loss.mean()
 
 
 class TanimotoDistLoss(torch.nn.Module):
@@ -188,7 +189,8 @@ class TanimotoDistLoss(torch.nn.Module):
 
         loss = tanimoto_loss(inputs, targets)
         if inputs.shape[1] == 1:
-            loss = (loss + tanimoto_loss(1.0 - inputs, 1.0 - targets)) * 0.5
+            compl_loss = tanimoto_loss(1.0 - inputs, 1.0 - targets)
+            loss = (loss + compl_loss) * 0.5
 
         return loss.mean()
 
