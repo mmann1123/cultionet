@@ -1,6 +1,7 @@
 import typing as T
 
 from .base_layers import (
+    AttentionGate,
     DoubleConv,
     PoolConv,
     PoolResidualConv,
@@ -441,6 +442,7 @@ class ResUNet3Connector(torch.nn.Module):
         self.n_pools = n_pools
         self.n_prev_down = n_prev_down
         self.n_stream_down = n_stream_down
+        self.attention = attention
         self.cat_channels = 0
 
         self.up = model_utils.UpSample()
@@ -498,13 +500,20 @@ class ResUNet3Connector(torch.nn.Module):
         # Previous output, (same) downstream
         if n_stream_down > 0:
             for n in range(0, n_stream_down):
+                in_stream_channels = up_channels
+                if attention:
+                    setattr(
+                        self,
+                        f'attn_stream_{n}',
+                        AttentionGate(up_channels, up_channels)
+                    )
+                    in_stream_channels = up_channels * 2
                 setattr(
                     self,
                     f'stream_{n}',
                     ResidualConv(
+                        in_stream_channels,
                         up_channels,
-                        up_channels,
-                        fractal_attention=attention,
                         dilations=dilations
                     )
                 )
@@ -512,7 +521,6 @@ class ResUNet3Connector(torch.nn.Module):
         self.conv4_0 = ResidualConv(
             channels[4],
             channels[0],
-            fractal_attention=attention,
             dilations=dilations
         )
         self.cat_channels += channels[0]
@@ -547,10 +555,22 @@ class ResUNet3Connector(torch.nn.Module):
                 ]
         if stream_down is not None:
             for n, x in zip(range(self.n_stream_down), stream_down):
-                c = getattr(self, f'stream_{n}')
-                h += [
-                    c(self.up(x, size=prev_same[0][1].shape[-2:]))
-                ]
+                if self.attention:
+                    # Gate
+                    g = self.up(x, size=prev_same[0][1].shape[-2:])
+                    c_attn = getattr(self, f'attn_stream_{n}')
+                    conv_name, prev_inputs = prev_same[0]
+                    c = getattr(self, conv_name)
+                    # Attention gate
+                    attn_out = c_attn(g, c(prev_inputs))
+                    c = getattr(self, f'stream_{n}')
+                    # Concatenate attention weights
+                    h += [c(torch.cat([attn_out, g], dim=1))]
+                else:
+                    c = getattr(self, f'stream_{n}')
+                    h += [
+                        c(self.up(x, size=prev_same[0][1].shape[-2:]))
+                    ]
         h += [
             self.conv4_0(self.up(x4_0, size=prev_same[0][1].shape[-2:]))
         ]
