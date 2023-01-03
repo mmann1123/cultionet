@@ -391,14 +391,14 @@ class FractalAttention(torch.nn.Module):
             torch.nn.Sigmoid()
         )
 
-        self.spatial_sim = TanimotoDist(dim=1)
-        self.channel_sim = TanimotoDist(dim=[2, 3])
+        self.spatial_sim = TanimotoComplement(depth=depth, dim=1)
+        self.channel_sim = TanimotoComplement(depth=depth, dim=[2, 3])
         self.norm = torch.nn.BatchNorm2d(out_channels)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        q = self.query(x)
-        k = self.key(x)
-        v = self.values(x)
+    def forward(self, g: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+        q = self.query(g)
+        k = self.key(g)
+        v = self.values(g)
 
         attention_spatial = self.spatial_sim(q, k)
         v_spatial = attention_spatial * v
@@ -412,7 +412,7 @@ class FractalAttention(torch.nn.Module):
         # 1 + γA
         attention = 1.0 + self.gamma * attention
 
-        return x * attention
+        return attention * x
 
 
 class ChannelAttention(torch.nn.Module):

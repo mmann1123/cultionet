@@ -114,7 +114,7 @@ class CultioNet(torch.nn.Module):
             num_classes_l2 = 3
             # Loss on background:0, crop-type:N
             num_classes_last = self.num_classes
-            base_in_channels = self.ds_num_time + star_rnn_hidden_dim * 2
+            base_in_channels = star_rnn_hidden_dim * 2
 
             self.crop_type_model = CropTypeFinal(
                 in_channels=base_in_channels+1+2+2,
@@ -124,7 +124,7 @@ class CultioNet(torch.nn.Module):
         else:
             # Loss on background:0, crop-type:1, edge:2
             num_classes_last = 3
-            base_in_channels = self.ds_num_time + star_rnn_hidden_dim
+            base_in_channels = star_rnn_hidden_dim
 
         self.star_rnn = StarRNN(
             input_dim=self.ds_num_bands,
@@ -134,13 +134,13 @@ class CultioNet(torch.nn.Module):
             num_classes_last=num_classes_last,
             crop_type_layer=True if self.num_classes > 2 else False
         )
-        self.conv3d = ConvBlock3d(
-            in_channels=self.ds_num_bands,
-            in_time=self.ds_num_time,
-            out_channels=1,
-            kernel_size=3,
-            padding=1
-        )
+        # self.conv3d = ConvBlock3d(
+        #     in_channels=self.ds_num_bands,
+        #     in_time=self.ds_num_time,
+        #     out_channels=1,
+        #     kernel_size=3,
+        #     padding=1
+        # )
         if model_type == 'UNet3Psi':
             self.mask_model = UNet3Psi(
                 in_channels=base_in_channels,
@@ -156,7 +156,8 @@ class CultioNet(torch.nn.Module):
                 out_edge_channels=2,
                 out_mask_channels=2,
                 init_filter=self.filters,
-                attention=True
+                attention=True,
+                attention_weights='gate'
             )
         else:
             raise NameError('Model type not supported.')
@@ -189,14 +190,14 @@ class CultioNet(torch.nn.Module):
         logits_star_last = self.cg(logits_star_last)
 
         # (2) 3d convolution
-        logits_time = self.conv3d(time_stream)
-        logits_time = self.cg(logits_time)
-        logits_time = torch.cat([logits_time, logits_star_h], dim=1)
+        # logits_time = self.conv3d(time_stream)
+        # logits_time = self.cg(logits_time)
+        # logits_time = torch.cat([logits_time, logits_star_h], dim=1)
 
         # (3) Main stream
         logits = self.mask_model(
             self.gc(
-                logits_time, batch_size, height, width
+                logits_star_h, batch_size, height, width
             )
         )
         logits_distance = self.cg(logits['dist'])
@@ -221,7 +222,7 @@ class CultioNet(torch.nn.Module):
                 self.gc(
                     torch.cat(
                         [
-                            logits_time,
+                            logits_star_h,
                             logits_distance,
                             logits_edges,
                             logits_crop

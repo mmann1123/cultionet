@@ -3,6 +3,7 @@ import typing as T
 from .base_layers import (
     AttentionGate,
     DoubleConv,
+    FractalAttention,
     PoolConv,
     PoolResidualConv,
     ResidualConv
@@ -435,9 +436,13 @@ class ResUNet3Connector(torch.nn.Module):
         n_prev_down: int = 0,
         n_stream_down: int = 0,
         dilations: T.List[int] = None,
-        attention: bool = False
+        attention: bool = False,
+        attention_weights: str = 'gate'
     ):
         super(ResUNet3Connector, self).__init__()
+
+        assert attention_weights in ['gate', 'fractal'], \
+            "Choose from 'gate' or 'fractal' attention weights."
 
         self.n_pools = n_pools
         self.n_prev_down = n_prev_down
@@ -502,10 +507,14 @@ class ResUNet3Connector(torch.nn.Module):
             for n in range(0, n_stream_down):
                 in_stream_channels = up_channels
                 if attention:
+                    if attention_weights == 'gate':
+                        attention_module = AttentionGate(up_channels, up_channels)
+                    else:
+                        attention_module = FractalAttention(up_channels, up_channels)
                     setattr(
                         self,
                         f'attn_stream_{n}',
-                        AttentionGate(up_channels, up_channels)
+                        attention_module
                     )
                     in_stream_channels = up_channels * 2
                 setattr(
@@ -588,7 +597,8 @@ class ResUNet3_3_1(torch.nn.Module):
         channels: T.Sequence[int],
         up_channels: int,
         dilations: T.List[int] = None,
-        attention: bool = False
+        attention: bool = False,
+        attention_weights: str = 'gate'
     ):
         super(ResUNet3_3_1, self).__init__()
 
@@ -602,7 +612,8 @@ class ResUNet3_3_1(torch.nn.Module):
             prev_backbone_channel_index=3,
             n_pools=3,
             dilations=dilations,
-            attention=attention
+            attention=attention,
+            attention_weights=attention_weights
         )
         # Edge stream connection
         self.conv_edge = ResUNet3Connector(
@@ -611,7 +622,8 @@ class ResUNet3_3_1(torch.nn.Module):
             prev_backbone_channel_index=3,
             n_pools=3,
             dilations=dilations,
-            attention=attention
+            attention=attention,
+            attention_weights=attention_weights
         )
         # Mask stream connection
         self.conv_mask = ResUNet3Connector(
@@ -620,7 +632,8 @@ class ResUNet3_3_1(torch.nn.Module):
             prev_backbone_channel_index=3,
             n_pools=3,
             dilations=dilations,
-            attention=attention
+            attention=attention,
+            attention_weights=attention_weights
         )
 
     def forward(
@@ -665,7 +678,8 @@ class ResUNet3_2_2(torch.nn.Module):
         channels: T.Sequence[int],
         up_channels: int,
         dilations: T.List[int] = None,
-        attention: bool = False
+        attention: bool = False,
+        attention_weights: str = 'gate'
     ):
         super(ResUNet3_2_2, self).__init__()
 
@@ -679,7 +693,8 @@ class ResUNet3_2_2(torch.nn.Module):
             n_pools=2,
             n_stream_down=1,
             dilations=dilations,
-            attention=attention
+            attention=attention,
+            attention_weights=attention_weights
         )
         self.conv_edge = ResUNet3Connector(
             channels=channels,
@@ -689,7 +704,8 @@ class ResUNet3_2_2(torch.nn.Module):
             n_prev_down=1,
             n_stream_down=1,
             dilations=dilations,
-            attention=attention
+            attention=attention,
+            attention_weights=attention_weights
         )
         self.conv_mask = ResUNet3Connector(
             channels=channels,
@@ -699,7 +715,8 @@ class ResUNet3_2_2(torch.nn.Module):
             n_prev_down=1,
             n_stream_down=1,
             dilations=dilations,
-            attention=attention
+            attention=attention,
+            attention_weights=attention_weights
         )
 
     def forward(
@@ -748,7 +765,8 @@ class ResUNet3_1_3(torch.nn.Module):
         channels: T.Sequence[int],
         up_channels: int,
         dilations: T.List[int] = None,
-        attention: bool = False
+        attention: bool = False,
+        attention_weights: str = 'gate'
     ):
         super(ResUNet3_1_3, self).__init__()
 
@@ -762,7 +780,8 @@ class ResUNet3_1_3(torch.nn.Module):
             n_pools=1,
             n_stream_down=2,
             dilations=dilations,
-            attention=attention
+            attention=attention,
+            attention_weights=attention_weights
         )
         self.conv_edge = ResUNet3Connector(
             channels=channels,
@@ -772,7 +791,8 @@ class ResUNet3_1_3(torch.nn.Module):
             n_prev_down=2,
             n_stream_down=2,
             dilations=dilations,
-            attention=attention
+            attention=attention,
+            attention_weights=attention_weights
         )
         self.conv_mask = ResUNet3Connector(
             channels=channels,
@@ -782,7 +802,8 @@ class ResUNet3_1_3(torch.nn.Module):
             n_prev_down=2,
             n_stream_down=2,
             dilations=dilations,
-            attention=attention
+            attention=attention,
+            attention_weights=attention_weights
         )
 
     def forward(
@@ -833,7 +854,8 @@ class ResUNet3_0_4(torch.nn.Module):
         channels: T.Sequence[int],
         up_channels: int,
         dilations: T.List[int] = None,
-        attention: bool = False
+        attention: bool = False,
+        attention_weights: str = 'gate'
     ):
         super(ResUNet3_0_4, self).__init__()
 
@@ -846,7 +868,8 @@ class ResUNet3_0_4(torch.nn.Module):
             prev_backbone_channel_index=0,
             n_stream_down=3,
             dilations=dilations,
-            attention=attention
+            attention=attention,
+            attention_weights=attention_weights
         )
         self.conv_edge = ResUNet3Connector(
             channels=channels,
@@ -855,7 +878,8 @@ class ResUNet3_0_4(torch.nn.Module):
             n_prev_down=3,
             n_stream_down=3,
             dilations=dilations,
-            attention=attention
+            attention=attention,
+            attention_weights=attention_weights
         )
         self.conv_mask = ResUNet3Connector(
             channels=channels,
@@ -864,7 +888,8 @@ class ResUNet3_0_4(torch.nn.Module):
             n_prev_down=3,
             n_stream_down=3,
             dilations=dilations,
-            attention=attention
+            attention=attention,
+            attention_weights=attention_weights
         )
 
     def forward(
