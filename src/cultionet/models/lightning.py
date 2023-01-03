@@ -431,7 +431,6 @@ class CultioLitModel(pl.LightningModule):
         learning_rate: float = 1e-3,
         weight_decay: float = 1e-4,
         eps: float = 1e-8,
-        depth: int = 5,
         ckpt_name: str = 'last',
         model_name: str = 'cultionet',
         model_type: str = 'ResUNet3Psi',
@@ -462,7 +461,6 @@ class CultioLitModel(pl.LightningModule):
             self.edge_class = edge_class
         else:
             self.edge_class = num_classes
-        self.depth = depth
 
         self.cultionet_model = CultioNet(
             ds_features=num_features,
