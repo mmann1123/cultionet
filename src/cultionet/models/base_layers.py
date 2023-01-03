@@ -133,76 +133,59 @@ class ConvBlock3d(torch.nn.Module):
         return self.seq(x)
 
 
-class AttentionAdd(torch.nn.Module):
-    def __init__(self):
-        super(AttentionAdd, self).__init__()
-
-        self.up = model_utils.UpSample()
-
-    def forward(self, x: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
-        if x.shape[-2:] != g.shape[-2:]:
-            x = self.up(x, size=g.shape[-2:], mode='bilinear')
-
-        return x + g
-
-
 class AttentionGate(torch.nn.Module):
     def __init__(
         self,
-        high_channels: int,
-        low_channels: int
+        in_channels: int,
+        out_channels: int
     ):
         super(AttentionGate, self).__init__()
 
-        conv_x = torch.nn.Conv2d(
-            high_channels,
-            high_channels,
-            kernel_size=1,
-            padding=0
-        )
-        conv_g = torch.nn.Conv2d(
-            low_channels,
-            high_channels,
+        conv_x = ConvBlock2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
             kernel_size=1,
             padding=0,
+            add_activation=False
         )
-        conv1d = torch.nn.Conv2d(
-            high_channels,
-            1,
+        conv_g = ConvBlock2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
             kernel_size=1,
-            padding=0
+            padding=0,
+            add_activation=False
+        )
+        conv_psi = torch.nn.Sequential(
+            torch.nn.Conv2d(
+                out_channels,
+                1,
+                kernel_size=1,
+                padding=0
+            ),
+            torch.nn.Sigmoid()
         )
         self.up = model_utils.UpSample()
 
         self.seq = nn.Sequential(
-            'x, g',
+            'g, x',
             [
-                (conv_x, 'x -> x'),
                 (conv_g, 'g -> g'),
-                (AttentionAdd(), 'x, g -> x'),
-                (torch.nn.LeakyReLU(inplace=False), 'x -> x'),
-                (conv1d, 'x -> x'),
-                (torch.nn.Sigmoid(), 'x -> x')
+                (conv_x, 'x -> h'),
+                (Add(), 'g, h -> h'),
+                (torch.nn.ReLU(inplace=False), 'h -> h'),
+                (conv_psi, 'h -> h')
             ]
         )
-        self.final = ConvBlock2d(
-            in_channels=high_channels,
-            out_channels=high_channels,
-            kernel_size=1,
-            add_activation=False
-        )
 
-    def forward(self, x: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
+    def forward(self, g: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            x: Higher dimension
-            g: Lower dimension
+            g: Higher dimension (gate)
+            x: Lower dimension (upsampled)
         """
-        h = self.seq(x, g)
-        if h.shape[-2:] != x.shape[-2:]:
-            h = self.up(h, size=x.shape[-2:], mode='bilinear')
+        h = self.seq(g, x)
 
-        return self.final(x * h)
+        return h * x
 
 
 class TanimotoComplement(torch.nn.Module):
@@ -370,6 +353,8 @@ class FractalAttention(torch.nn.Module):
     ):
         super(FractalAttention, self).__init__()
 
+        self.gamma = torch.nn.Parameter(torch.ones(1))
+
         self.query = torch.nn.Sequential(
             ConvBlock2d(
                 in_channels=in_channels,
@@ -416,10 +401,13 @@ class FractalAttention(torch.nn.Module):
         attention_channel = self.channel_sim(q, k)
         v_channel = attention_channel * v
 
-        v_channel_spatial = (v_spatial + v_channel) * 0.5
-        v_channel_spatial = self.norm(v_channel_spatial)
+        attention = (v_spatial + v_channel) * 0.5
+        attention = self.norm(attention)
 
-        return v_channel_spatial
+        # 1 + γA
+        attention = 1.0 + self.gamma * attention
+
+        return x * attention
 
 
 class ChannelAttention(torch.nn.Module):
@@ -555,14 +543,10 @@ class ResidualConv(torch.nn.Module):
         in_channels: int,
         out_channels: int,
         init_conv: bool = False,
-        fractal_attention: bool = False,
         channel_attention: bool = False,
         dilations: T.List[int] = None
     ):
         super(ResidualConv, self).__init__()
-
-        assert not all([fractal_attention, channel_attention]), \
-            'Only one attention method should be used.'
 
         init_in_channels = in_channels
 
@@ -598,13 +582,6 @@ class ResidualConv(torch.nn.Module):
                     )
                 ]
 
-        self.fractal_weights = None
-        if fractal_attention:
-            self.fractal_weights = FractalAttention(
-                in_channels=init_in_channels,
-                out_channels=out_channels
-            )
-            self.gamma = torch.nn.Parameter(torch.ones(1))
         if channel_attention:
             layers += [ChannelAttention(channels=out_channels)]
 
@@ -618,13 +595,6 @@ class ResidualConv(torch.nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = self.seq(x) + self.skip(x)
-
-        if self.fractal_weights is not None:
-            # Fractal attention
-            attention = self.fractal_weights(x)
-            # 1 + γA
-            attention = 1.0 + self.gamma * attention
-            out = out * attention
 
         return out
 
