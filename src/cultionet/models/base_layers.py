@@ -661,7 +661,6 @@ class PoolResidualConv(torch.nn.Module):
         pool_size: int = 2,
         dropout: T.Optional[float] = None,
         dilations: T.List[int] = None,
-        fractal_attention: bool = False,
         channel_attention: bool = False,
         res_blocks: int = 0
     ):
@@ -678,7 +677,6 @@ class PoolResidualConv(torch.nn.Module):
                 ResidualConvRCAB(
                     in_channels,
                     out_channels,
-                    fractal_attention=fractal_attention,
                     channel_attention=channel_attention,
                     res_blocks=res_blocks
                 ),
@@ -695,7 +693,6 @@ class PoolResidualConv(torch.nn.Module):
                 ResidualConv(
                     in_channels,
                     out_channels,
-                    fractal_attention=fractal_attention,
                     channel_attention=channel_attention,
                     dilations=dilations
                 )
