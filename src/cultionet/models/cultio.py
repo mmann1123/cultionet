@@ -1,9 +1,10 @@
 import typing as T
 
 from . import model_utils
-from .base_layers import ConvBlock2d, ConvBlock3d
+from .base_layers import ConvBlock2d
 from .nunet import UNet3Psi, ResUNet3Psi
 from .convstar import StarRNN
+from .tst import TST
 
 import torch
 from torch_geometric.data import Data
@@ -87,7 +88,7 @@ class CultioNet(torch.nn.Module):
         ds_features: int,
         ds_time_features: int,
         filters: int = 64,
-        star_rnn_hidden_dim: int = 64,
+        star_rnn_hidden_dim: int = 128,
         star_rnn_n_layers: int = 4,
         num_classes: int = 2,
         model_type: str = 'UNet3Psi'
@@ -107,40 +108,40 @@ class CultioNet(torch.nn.Module):
         self.cg = model_utils.ConvToGraph()
 
         # Star RNN layer crop classes
-        num_classes_l2 = 0
-        if self.num_classes > 2:
-            # Crop-type classes
-            # Loss on background:0, crop-type:1, edge:2
-            num_classes_l2 = 3
-            # Loss on background:0, crop-type:N
-            num_classes_last = self.num_classes
-            base_in_channels = star_rnn_hidden_dim * 2
+        # num_classes_l2 = 0
+        # if self.num_classes > 2:
+        #     # Crop-type classes
+        #     # Loss on background:0, crop-type:1, edge:2
+        #     num_classes_l2 = 3
+        #     # Loss on background:0, crop-type:N
+        #     num_classes_last = self.num_classes
+        #     base_in_channels = star_rnn_hidden_dim * 2
 
-            self.crop_type_model = CropTypeFinal(
-                in_channels=base_in_channels+1+2+2,
-                out_channels=star_rnn_hidden_dim,
-                out_classes=num_classes_last
-            )
-        else:
-            # Loss on background:0, crop-type:1, edge:2
-            num_classes_last = 3
-            base_in_channels = star_rnn_hidden_dim
+        #     self.crop_type_model = CropTypeFinal(
+        #         in_channels=base_in_channels+1+2+2,
+        #         out_channels=star_rnn_hidden_dim,
+        #         out_classes=num_classes_last
+        #     )
+        # else:
+        # Loss on background:0, crop-type:1, edge:2
+        num_classes_last = 3
+        base_in_channels = star_rnn_hidden_dim
 
-        self.star_rnn = StarRNN(
-            input_dim=self.ds_num_bands,
-            hidden_dim=star_rnn_hidden_dim,
-            n_layers=star_rnn_n_layers,
-            num_classes_l2=num_classes_l2,
-            num_classes_last=num_classes_last,
-            crop_type_layer=True if self.num_classes > 2 else False
-        )
-        # self.conv3d = ConvBlock3d(
-        #     in_channels=self.ds_num_bands,
-        #     in_time=self.ds_num_time,
-        #     out_channels=1,
-        #     kernel_size=3,
-        #     padding=1
+        # self.star_rnn = StarRNN(
+        #     input_dim=self.ds_num_bands,
+        #     hidden_dim=star_rnn_hidden_dim,
+        #     n_layers=star_rnn_n_layers,
+        #     num_classes_l2=num_classes_l2,
+        #     num_classes_last=num_classes_last,
+        #     crop_type_layer=True if self.num_classes > 2 else False
         # )
+        self.tst = TST(
+            in_channels=self.ds_num_bands,
+            out_channels=num_classes_last,
+            seq_len=self.ds_num_time,
+            d_model=star_rnn_hidden_dim,
+            n_layers=star_rnn_n_layers
+        )
         if model_type == 'UNet3Psi':
             self.mask_model = UNet3Psi(
                 in_channels=base_in_channels,
@@ -180,26 +181,21 @@ class CultioNet(torch.nn.Module):
         )
         # (1) RNN ConvStar
         # Crop/Non-crop and Crop types
-        if self.num_classes > 2:
-            logits_star_h, logits_star_l2, logits_star_last = self.star_rnn(time_stream)
-            logits_star_l2 = self.cg(logits_star_l2)
-        else:
-            logits_star_h, logits_star_last = self.star_rnn(time_stream)
+        # if self.num_classes > 2:
+        #     logits_star_h, logits_star_l2, logits_star_last = self.star_rnn(time_stream)
+        #     logits_star_l2 = self.cg(logits_star_l2)
+        # else:
+        #     logits_star_h, logits_star_last = self.star_rnn(time_stream)
 
-        logits_star_h = self.cg(logits_star_h)
-        logits_star_last = self.cg(logits_star_last)
+        # logits_star_h = self.cg(logits_star_h)
+        # logits_star_last = self.cg(logits_star_last)
 
-        # (2) 3d convolution
-        # logits_time = self.conv3d(time_stream)
-        # logits_time = self.cg(logits_time)
-        # logits_time = torch.cat([logits_time, logits_star_h], dim=1)
+        # (2) Time series transformer
+        logits_tst, logits_tst_last = self.tst(time_stream)
+        logits_tst_last = self.cg(logits_tst_last)
 
         # (3) Main stream
-        logits = self.mask_model(
-            self.gc(
-                logits_star_h, batch_size, height, width
-            )
-        )
+        logits = self.mask_model(logits_tst)
         logits_distance = self.cg(logits['dist'])
         logits_edges = self.cg(logits['edge'])
         logits_crop = self.cg(logits['mask'])
@@ -212,34 +208,34 @@ class CultioNet(torch.nn.Module):
             'crop_type_star': None,
             'crop_type': None
         }
-        if self.num_classes > 2:
-            # Crop binary plus edge
-            out['crop_star'] = logits_star_l2
-            # Crop-type
-            out['crop_type_star'] = logits_star_last
+        # if self.num_classes > 2:
+        #     # Crop binary plus edge
+        #     out['crop_star'] = logits_star_l2
+        #     # Crop-type
+        #     out['crop_type_star'] = logits_star_last
 
-            crop_type_logits = self.crop_type_model(
-                self.gc(
-                    torch.cat(
-                        [
-                            logits_star_h,
-                            logits_distance,
-                            logits_edges,
-                            logits_crop
-                        ],
-                        dim=1
-                    ), batch_size, height, width
-                ),
-                crop_type_star=self.gc(
-                    logits_star_last,
-                    batch_size,
-                    height,
-                    width
-                )
-            )
-            # Crop-type (final)
-            out['crop_type'] = self.cg(crop_type_logits)
-        else:
-            out['crop_star'] = logits_star_last
+        #     crop_type_logits = self.crop_type_model(
+        #         self.gc(
+        #             torch.cat(
+        #                 [
+        #                     logits_star_h,
+        #                     logits_distance,
+        #                     logits_edges,
+        #                     logits_crop
+        #                 ],
+        #                 dim=1
+        #             ), batch_size, height, width
+        #         ),
+        #         crop_type_star=self.gc(
+        #             logits_star_last,
+        #             batch_size,
+        #             height,
+        #             width
+        #         )
+        #     )
+        #     # Crop-type (final)
+        #     out['crop_type'] = self.cg(crop_type_logits)
+        # else:
+        out['crop_star'] = logits_tst_last
 
         return out

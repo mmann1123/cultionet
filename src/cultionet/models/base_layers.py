@@ -6,6 +6,15 @@ import torch
 from torch_geometric import nn
 
 
+class Transpose(torch.nn.Module):
+    def __init__(self, axis_order: T.Sequence[int]):
+        super(Transpose, self).__init__()
+        self.axis_order = axis_order
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x.transpose(*self.axis_order)
+
+
 class Permute(torch.nn.Module):
     def __init__(self, axis_order: T.Sequence[int]):
         super(Permute, self).__init__()
