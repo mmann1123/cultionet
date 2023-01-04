@@ -630,10 +630,13 @@ class LightningGTiffWriter(BasePredictionWriter):
 
         distance_batch = reshaper(distance_batch, channel_dims=1)
         edge_batch = reshaper(edge_batch, channel_dims=2)
-        crop_batch = reshaper(crop_batch, channel_dims=2)
+        if crop_batch is not None:
+            crop_batch = reshaper(crop_batch, channel_dims=2)
         if crop_type_batch is not None:
-            num_classes = crop_type_batch.size(1)
-            crop_type_batch = reshaper(crop_type_batch, channel_dims=num_classes)
+            crop_type_batch = reshaper(
+                crop_type_batch,
+                channel_dims=crop_type_batch.shape[1]
+            )
 
         return distance_batch, edge_batch, crop_batch, crop_type_batch
 
@@ -662,12 +665,14 @@ class LightningGTiffWriter(BasePredictionWriter):
                 batch=batch,
                 distance_batch=distance[mask],
                 edge_batch=edge[mask],
-                crop_batch=crop[mask],
+                crop_batch=crop[mask] if crop is not None else None,
                 crop_type_batch=crop_type[mask] if crop_type is not None else None,
                 batch_index=batch_index
             )
+            if crop_batch is None:
+                crop_batch = torch.zeros((edge_batch.shape[0], 2), dtype=edge_batch.dtype)
             if crop_type_batch is None:
-                crop_type_batch = torch.zeros((crop_batch.size(0), 2), dtype=crop_batch.dtype)
+                crop_type_batch = torch.zeros((edge_batch.shape[0], 2), dtype=edge_batch.dtype)
             mo = ModelOutputs(
                 distance=distance_batch,
                 edge=edge_batch,
