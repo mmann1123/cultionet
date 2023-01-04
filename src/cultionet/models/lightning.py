@@ -694,9 +694,9 @@ class CultioLitModel(pl.LightningModule):
         # Loss on distance from edge
         dist_loss = self.dist_loss(predictions['dist'], batch.bdist)
         # Loss on edge|non-edge
-        # sample_weights = self.get_edge_weights(batch, predictions['edge'], true_edge)
+        sample_weights = self.get_edge_weights(batch, predictions['edge'], true_edge)
         edge_loss = self.edge_loss(
-            predictions['edge'], true_edge, sample_weights=None
+            predictions['edge'], true_edge, sample_weights=sample_weights
         )
         # Loss on crop|non-crop
         crop_loss = self.crop_loss(predictions['crop'], true_crop)

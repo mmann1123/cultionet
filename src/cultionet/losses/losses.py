@@ -205,8 +205,8 @@ class TanimotoDistLoss(torch.nn.Module):
             # Reduce
             tpl = ((yhat * y) * sample_weights).sum(dim=0)
             sq_sum = ((yhat**2 + y**2) * sample_weights).sum(dim=0)
-            numerator = (tpl * weights + self.smooth).sum()
-            denominator = ((sq_sum - tpl) * weights + self.smooth).sum()
+            numerator = tpl * weights + self.smooth
+            denominator = (sq_sum - tpl) * weights + self.smooth
             tanimoto = numerator / denominator
             loss = 1.0 - tanimoto
 
@@ -217,7 +217,7 @@ class TanimotoDistLoss(torch.nn.Module):
             compl_loss = tanimoto_loss(1.0 - inputs, 1.0 - targets)
             loss = (loss + compl_loss) * 0.5
 
-        return loss
+        return loss.mean()
 
 
 class CrossEntropyLoss(torch.nn.Module):
