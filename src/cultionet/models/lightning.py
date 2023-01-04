@@ -343,13 +343,19 @@ class TemperatureScaling(pl.LightningModule):
         predictions: torch.Tensor
     ):
         edge = self(predictions['edge'], self.edge_temperature)
-        crop = self(predictions['crop'], self.crop_temperature)
+        if predictions['crop'] is not None:
+            crop = self(predictions['crop'], self.crop_temperature)
+            # in case of multi-class, `true_crop` = 1, 2, etc.
+            true_crop = torch.where(
+                (batch.y > 0) & (batch.y != self.edge_class), 1, 0
+            ).long()
+        elif predictions['crop_type'] is not None:
+            crop = self(predictions['crop_type'], self.crop_temperature)
+            true_crop = torch.where(
+                batch.y == self.edge_class, 0, batch.y
+            ).long()
 
         true_edge = batch.y.eq(self.edge_class).long()
-        # in case of multi-class, `true_crop` = 1, 2, etc.
-        true_crop = torch.where(
-            (batch.y > 0) & (batch.y != self.edge_class), 1, 0
-        ).long()
 
         edge_loss = self.edge_loss(edge, true_edge)
         crop_loss = self.crop_loss(crop, true_crop)
@@ -390,8 +396,8 @@ class TemperatureScaling(pl.LightningModule):
                 f.write(json.dumps(temperature_scales))
 
     def configure_loss(self):
-        self.edge_loss = TanimotoDistLoss()
-        self.crop_loss = TanimotoDistLoss()
+        self.edge_loss = TanimotoDistLoss(scale_pos_weight=True)
+        self.crop_loss = TanimotoDistLoss(scale_pos_weight=True)
 
     def configure_optimizers(self):
         optimizer = torch.optim.LBFGS(
@@ -428,8 +434,8 @@ class CultioLitModel(pl.LightningModule):
         num_classes: int = 2,
         filters: int = 32,
         star_rnn_n_layers: int = 5,
-        learning_rate: float = 1e-3,
-        weight_decay: float = 1e-4,
+        learning_rate: float = 1e-4,
+        weight_decay: float = 0.01,
         eps: float = 1e-8,
         ckpt_name: str = 'last',
         model_name: str = 'cultionet',
@@ -650,7 +656,7 @@ class CultioLitModel(pl.LightningModule):
         probas_sum = window_weights(edge[:, 1]*true_edge.squeeze(), probas_sum)
         weights_sum = window_weights(true_edge.squeeze(), weights_sum)
         weights = torch.nan_to_num(
-            probas_sum / weights_sum,
+            1.0 - (probas_sum / weights_sum),
             nan=0.0,
             posinf=0.0,
             neginf=0.0
@@ -693,9 +699,8 @@ class CultioLitModel(pl.LightningModule):
 
         # Loss on distance from edge
         dist_loss = self.dist_loss(predictions['dist'], batch.bdist)
+        # sample_weights = self.get_edge_weights(batch, predictions['edge'], true_edge)
         edge_loss = self.edge_loss(predictions['edge'], true_edge)
-        # Loss on crop|non-crop
-        crop_loss = self.crop_loss(predictions['crop'], true_crop)
         # Upstream (deep) loss on crop|non-crop + edge
         crop_star_loss = self.crop_star_loss(
             predictions['crop_star'], true_crop_plus_edge
@@ -705,21 +710,23 @@ class CultioLitModel(pl.LightningModule):
         loss = (
             dist_loss
             + edge_loss
-            + crop_loss
             + crop_star_loss
         )
 
+        if predictions['crop'] is not None:
+            # Loss on crop|non-crop
+            crop_loss = self.crop_loss(predictions['crop'], true_crop)
+            loss = loss + crop_loss
         if predictions['crop_type'] is not None:
             # Upstream (deep) loss on crop-type
             crop_type_star_loss = self.crop_type_star_loss(
                 predictions['crop_type_star'], true_crop_type
             )
-            loss = loss + crop_type_star_loss
             # Loss on crop-type
-            crop_type_loss = self.crop_type_loss(
+            crop_type_loss = self.crop_loss(
                 predictions['crop_type'], true_crop_type
             )
-            loss = loss + crop_type_loss
+            loss = loss + crop_type_star_loss + crop_type_loss
 
         return loss
 
@@ -756,27 +763,40 @@ class CultioLitModel(pl.LightningModule):
                 predictions['edge']
             )
         )
-        crop_ypred = self.probas_to_labels(
-            self.logits_to_probas(
-                predictions['crop']
-            )
-        )
         # Get the true edge and crop labels
         edge_ytrue, crop_ytrue, __, crop_type_ytrue = self.get_true_labels(
             batch, crop_type=predictions['crop_type']
         )
         # F1-score
         edge_score = self.edge_f1(edge_ypred, edge_ytrue)
-        crop_score = self.crop_f1(crop_ypred, crop_ytrue)
         # MCC
         edge_mcc = self.edge_mcc(edge_ypred, edge_ytrue)
-        crop_mcc = self.crop_mcc(crop_ypred, crop_ytrue)
         # Dice
         edge_dice = self.edge_dice(edge_ypred, edge_ytrue)
-        crop_dice = self.crop_dice(crop_ypred, crop_ytrue)
         # Jaccard/IoU
         edge_jaccard = self.edge_jaccard(edge_ypred, edge_ytrue)
-        crop_jaccard = self.crop_jaccard(crop_ypred, crop_ytrue)
+
+        crop_mcc = None
+        crop_dice = None
+        crop_jaccard = None
+        if predictions['crop'] is not None:
+            crop_ypred = self.probas_to_labels(
+                self.logits_to_probas(
+                    predictions['crop']
+                )
+            )
+            crop_score = self.crop_f1(crop_ypred, crop_ytrue)
+            crop_mcc = self.crop_mcc(crop_ypred, crop_ytrue)
+            crop_dice = self.crop_dice(crop_ypred, crop_ytrue)
+            crop_jaccard = self.crop_jaccard(crop_ypred, crop_ytrue)
+
+        if predictions['crop_type'] is not None:
+            crop_type_ypred = self.probas_to_labels(
+                self.logits_to_probas(
+                    predictions['crop_type']
+                )
+            )
+            crop_score = self.crop_f1(crop_type_ypred, crop_type_ytrue)
 
         metrics = {
             'loss': loss,
@@ -791,14 +811,6 @@ class CultioLitModel(pl.LightningModule):
             'edge_jaccard': edge_jaccard,
             'crop_jaccard': crop_jaccard
         }
-        if predictions['crop_type'] is not None:
-            crop_type_ypred = self.probas_to_labels(
-                self.logits_to_probas(
-                    predictions['crop_type']
-                )
-            )
-            crop_type_score = self.crop_type_f1(crop_type_ypred, crop_type_ytrue)
-            metrics['crop_type_f1'] = crop_type_score
 
         return metrics
 
@@ -815,8 +827,6 @@ class CultioLitModel(pl.LightningModule):
             'vcmcc': eval_metrics['crop_mcc'],
             'vmae': eval_metrics['dist_mae']
         }
-        if 'crop_type_f1' in eval_metrics:
-            metrics['vctf1'] = eval_metrics['crop_type_f1']
         self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=True)
 
         return metrics
@@ -839,8 +849,6 @@ class CultioLitModel(pl.LightningModule):
             'tejaccard': eval_metrics['edge_jaccard'],
             'tcjaccard': eval_metrics['crop_jaccard']
         }
-        if 'crop_type_f1' in eval_metrics:
-            metrics['tctf1'] = eval_metrics['crop_type_f1']
         self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=True)
 
         return metrics
@@ -849,22 +857,23 @@ class CultioLitModel(pl.LightningModule):
         self.dist_mae = torchmetrics.MeanAbsoluteError()
         self.dist_mse = torchmetrics.MeanSquaredError()
         self.edge_f1 = torchmetrics.F1Score(num_classes=2, average='micro')
-        self.crop_f1 = torchmetrics.F1Score(num_classes=2, average='micro')
         self.edge_mcc = torchmetrics.MatthewsCorrCoef(num_classes=2)
         self.crop_mcc = torchmetrics.MatthewsCorrCoef(num_classes=2)
         self.edge_dice = torchmetrics.Dice(num_classes=2, average='micro')
         self.crop_dice = torchmetrics.Dice(num_classes=2, average='micro')
         self.edge_jaccard = torchmetrics.JaccardIndex(
-            average='micro',
-            num_classes=2
+            average='micro', num_classes=2
         )
         self.crop_jaccard = torchmetrics.JaccardIndex(
-            average='micro',
-            num_classes=2
+            average='micro', num_classes=2
         )
         if self.num_classes > 2:
-            self.crop_type_f1 = torchmetrics.F1Score(
-                num_classes=self.num_classes, average='weighted', ignore_index=0
+            self.crop_f1 = torchmetrics.F1Score(
+                num_classes=self.num_classes, average='weighted'
+            )
+        else:
+            self.crop_f1 = torchmetrics.F1Score(
+                num_classes=2, average='micro'
             )
 
     def configure_loss(self):
@@ -873,8 +882,7 @@ class CultioLitModel(pl.LightningModule):
         self.crop_loss = TanimotoDistLoss(scale_pos_weight=True)
         self.crop_star_loss = TanimotoDistLoss(scale_pos_weight=True)
         if self.num_classes > 2:
-            self.crop_type_star_loss = TanimotoDistLoss()
-            self.crop_type_loss = TanimotoDistLoss()
+            self.crop_type_star_loss = TanimotoDistLoss(scale_pos_weight=True)
 
     def configure_optimizers(self):
         params_list = list(self.cultionet_model.parameters())
