@@ -134,13 +134,6 @@ class CultioNet(torch.nn.Module):
             num_classes_last=num_classes_last,
             crop_type_layer=True if self.num_classes > 2 else False
         )
-        # self.conv3d = ConvBlock3d(
-        #     in_channels=self.ds_num_bands,
-        #     in_time=self.ds_num_time,
-        #     out_channels=1,
-        #     kernel_size=3,
-        #     padding=1
-        # )
         if model_type == 'UNet3Psi':
             self.mask_model = UNet3Psi(
                 in_channels=base_in_channels,
@@ -188,11 +181,6 @@ class CultioNet(torch.nn.Module):
 
         logits_star_h = self.cg(logits_star_h)
         logits_star_last = self.cg(logits_star_last)
-
-        # (2) 3d convolution
-        # logits_time = self.conv3d(time_stream)
-        # logits_time = self.cg(logits_time)
-        # logits_time = torch.cat([logits_time, logits_star_h], dim=1)
 
         # (3) Main stream
         logits = self.mask_model(
