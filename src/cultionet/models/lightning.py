@@ -2,7 +2,7 @@ import typing as T
 from pathlib import Path
 import json
 
-from ..losses import TanimotoComplementLoss
+from ..losses import TanimotoDistLoss
 from .cultio import CultioNet
 from .maskcrnn import BFasterRCNN
 from . import model_utils
@@ -390,8 +390,8 @@ class TemperatureScaling(pl.LightningModule):
                 f.write(json.dumps(temperature_scales))
 
     def configure_loss(self):
-        self.edge_loss = TanimotoComplementLoss()
-        self.crop_loss = TanimotoComplementLoss()
+        self.edge_loss = TanimotoDistLoss()
+        self.crop_loss = TanimotoDistLoss()
 
     def configure_optimizers(self):
         optimizer = torch.optim.LBFGS(
@@ -461,6 +461,9 @@ class CultioLitModel(pl.LightningModule):
             self.edge_class = edge_class
         else:
             self.edge_class = num_classes
+
+        self.gc = model_utils.GraphToConv()
+        self.cg = model_utils.ConvToGraph()
 
         self.cultionet_model = CultioNet(
             ds_features=num_features,
@@ -555,7 +558,7 @@ class CultioLitModel(pl.LightningModule):
         return true_edge, true_crop, true_crop_plus_edge, true_crop_type
 
     def softmax(self, x: torch.Tensor, dim: int = 1) -> torch.Tensor:
-        return F.softmax(x, dim=dim, dtype=x.dtype)
+        return F.softmax(x, dim=dim, dtype=x.dtype).clip(0, 1)
 
     def probas_to_labels(
         self, x: torch.Tensor, thresh: float = 0.5
@@ -593,6 +596,87 @@ class CultioLitModel(pl.LightningModule):
                 self.state_dict(), model_file
             )
 
+    def get_edge_weights(
+        self,
+        batch: T.Union[Data, T.List],
+        edge: torch.Tensor,
+        true_edge: torch.Tensor
+    ) -> torch.Tensor:
+        """Gets pixel weights
+        """
+        height = int(batch.height) if batch.batch is None else int(batch.height[0])
+        width = int(batch.width) if batch.batch is None else int(batch.width[0])
+        batch_size = 1 if batch.batch is None else batch.batch.unique().size(0)
+        edge = self.gc(
+            self.logits_to_probas(edge), batch_size, height, width
+        )
+        true_edge = self.gc(
+            true_edge.unsqueeze(1), batch_size, height, width
+        )
+        probas_sum = torch.zeros(
+            edge[:, 1].shape,
+            dtype=edge.dtype,
+            device=edge.device,
+            requires_grad=False
+        )
+        weights_sum = torch.zeros(
+            edge[:, 1].shape,
+            dtype=edge.dtype,
+            device=edge.device,
+            requires_grad=False
+        )
+        shifts = [
+            (1, 1),
+            (1, 0),
+            (1, -1),
+            (0, 1),
+            (0, -1),
+            (-1, 1),
+            (-1, 0),
+            (-1, -1)
+        ]
+
+        def window_weights(x: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
+            for shift in shifts:
+                w[:, 1:-1, 1:-1] += torch.roll(
+                    x, shifts=shift, dims=(1, 2)
+                )[:, 1:-1, 1:-1]
+            # Center
+            w[:, 1:-1, 1:-1] += x[:, 1:-1, 1:-1]
+
+            return w
+
+        # Mask non-edge pixels in order to get weights for positives only
+        probas_sum = window_weights(edge[:, 1]*true_edge.squeeze(), probas_sum)
+        weights_sum = window_weights(true_edge.squeeze(), weights_sum)
+        weights = torch.nan_to_num(
+            probas_sum / weights_sum,
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0
+        ).unsqueeze(1)
+        weights = torch.where(
+            true_edge == 0,
+            1,
+            torch.where(
+                weights <= 0.1,
+                0.1,
+                weights
+            )
+        )
+
+        # Return dimensions -> Samples x 1
+        weights = self.cg(weights)
+        ones = torch.ones(
+            weights.shape,
+            dtype=weights.dtype,
+            device=weights.device,
+            requires_grad=False
+        )
+        weights = torch.cat([ones, weights], dim=1)
+
+        return weights
+
     def calc_loss(
         self,
         batch: T.Union[Data, T.List],
@@ -607,20 +691,28 @@ class CultioLitModel(pl.LightningModule):
             batch, crop_type=predictions['crop_type']
         )
 
+        # Loss on distance from edge
         dist_loss = self.dist_loss(predictions['dist'], batch.bdist)
-        edge_loss = self.edge_loss(predictions['edge'], true_edge)
+        # Loss on edge|non-edge
+        sample_weights = self.get_edge_weights(batch, predictions['edge'], true_edge)
+        edge_loss = self.edge_loss(
+            predictions['edge'], true_edge, sample_weights=sample_weights
+        )
+        # Loss on crop|non-crop
         crop_loss = self.crop_loss(predictions['crop'], true_crop)
+        # Upstream (deep) loss on crop|non-crop + edge
+        crop_star_loss = self.crop_star_loss(
+            predictions['crop_star'], true_crop_plus_edge
+        )
+
         # Main loss
         loss = (
             dist_loss
             + edge_loss
             + crop_loss
+            + crop_star_loss
         )
-        # Upstream (deep) loss on crop|non-crop + edge
-        crop_star_loss = self.crop_star_loss(
-            predictions['crop_star'], true_crop_plus_edge
-        )
-        loss = loss + crop_star_loss
+
         if predictions['crop_type'] is not None:
             # Upstream (deep) loss on crop-type
             crop_type_star_loss = self.crop_type_star_loss(
@@ -780,13 +872,13 @@ class CultioLitModel(pl.LightningModule):
             )
 
     def configure_loss(self):
-        self.dist_loss = TanimotoComplementLoss()
-        self.edge_loss = TanimotoComplementLoss()
-        self.crop_loss = TanimotoComplementLoss()
-        self.crop_star_loss = TanimotoComplementLoss()
+        self.dist_loss = TanimotoDistLoss()
+        self.edge_loss = TanimotoDistLoss(scale_pos_weight=True)
+        self.crop_loss = TanimotoDistLoss(scale_pos_weight=True)
+        self.crop_star_loss = TanimotoDistLoss(scale_pos_weight=True)
         if self.num_classes > 2:
-            self.crop_type_star_loss = TanimotoComplementLoss()
-            self.crop_type_loss = TanimotoComplementLoss()
+            self.crop_type_star_loss = TanimotoDistLoss()
+            self.crop_type_loss = TanimotoDistLoss()
 
     def configure_optimizers(self):
         params_list = list(self.cultionet_model.parameters())
