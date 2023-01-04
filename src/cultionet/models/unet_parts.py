@@ -453,15 +453,15 @@ class ResUNet3Connector(torch.nn.Module):
         self.up = model_utils.UpSample()
 
         # Pool layers
-        if n_pools > 0:
-            if n_pools == 3:
+        if self.n_pools > 0:
+            if self.n_pools == 3:
                 pool_size = 8
-            elif n_pools == 2:
+            elif self.n_pools == 2:
                 pool_size = 4
             else:
                 pool_size = 2
 
-            for n in range(0, n_pools):
+            for n in range(0, self.n_pools):
                 setattr(
                     self,
                     f'pool_{n}',
@@ -488,10 +488,11 @@ class ResUNet3Connector(torch.nn.Module):
                 up_channels,
                 dilations=dilations
             )
-        self.cat_channels += up_channels
+        if not self.attention or (self.n_stream_down == 0):
+            self.cat_channels += up_channels
         # Previous output, downstream
-        if n_prev_down > 0:
-            for n in range(0, n_prev_down):
+        if self.n_prev_down > 0:
+            for n in range(0, self.n_prev_down):
                 setattr(
                     self,
                     f'prev_{n}',
@@ -503,10 +504,10 @@ class ResUNet3Connector(torch.nn.Module):
                 )
                 self.cat_channels += up_channels
         # Previous output, (same) downstream
-        if n_stream_down > 0:
-            for n in range(0, n_stream_down):
+        if self.n_stream_down > 0:
+            for n in range(0, self.n_stream_down):
                 in_stream_channels = up_channels
-                if attention:
+                if self.attention:
                     if attention_weights == 'gate':
                         attention_module = AttentionGate(up_channels, up_channels)
                     else:
@@ -527,6 +528,7 @@ class ResUNet3Connector(torch.nn.Module):
                     )
                 )
                 self.cat_channels += up_channels
+
         self.conv4_0 = ResidualConv(
             channels[4],
             channels[0],
@@ -534,7 +536,7 @@ class ResUNet3Connector(torch.nn.Module):
         )
         self.cat_channels += channels[0]
 
-        self.conv = ResidualConv(
+        self.final = ResidualConv(
             self.cat_channels,
             up_channels,
             dilations=dilations
@@ -553,9 +555,10 @@ class ResUNet3Connector(torch.nn.Module):
             for n, x in zip(range(self.n_pools), pools):
                 c = getattr(self, f'pool_{n}')
                 h += [c(x)]
-        for conv_name, prev_inputs in prev_same:
-            c = getattr(self, conv_name)
-            h += [c(prev_inputs)]
+        if not self.attention or stream_down is None:
+            for conv_name, prev_inputs in prev_same:
+                c = getattr(self, conv_name)
+                h += [c(prev_inputs)]
         if prev_down is not None:
             for n, x in zip(range(self.n_prev_down), prev_down):
                 c = getattr(self, f'prev_{n}')
@@ -580,11 +583,12 @@ class ResUNet3Connector(torch.nn.Module):
                     h += [
                         c(self.up(x, size=prev_same[0][1].shape[-2:]))
                     ]
+
         h += [
             self.conv4_0(self.up(x4_0, size=prev_same[0][1].shape[-2:]))
         ]
         h = torch.cat(h, dim=1)
-        h = self.conv(h)
+        h = self.final(h)
 
         return h
 
