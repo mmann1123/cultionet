@@ -114,6 +114,7 @@ class CultioNet(torch.nn.Module):
             num_classes_l2 = 3
             # Loss on background:0, crop-type:N
             num_classes_last = self.num_classes
+            out_mask_channels = self.num_classes
             base_in_channels = star_rnn_hidden_dim * 2
 
             self.crop_type_model = CropTypeFinal(
@@ -124,6 +125,7 @@ class CultioNet(torch.nn.Module):
         else:
             # Loss on background:0, crop-type:1, edge:2
             num_classes_last = 3
+            out_mask_channels = 2
             base_in_channels = star_rnn_hidden_dim
 
         self.star_rnn = StarRNN(
@@ -147,7 +149,7 @@ class CultioNet(torch.nn.Module):
                 in_channels=base_in_channels,
                 out_dist_channels=1,
                 out_edge_channels=2,
-                out_mask_channels=2,
+                out_mask_channels=out_mask_channels,
                 init_filter=self.filters,
                 attention=True,
                 attention_weights='gate'
@@ -195,39 +197,21 @@ class CultioNet(torch.nn.Module):
         out = {
             'dist': logits_distance,
             'edge': logits_edges,
-            'crop': logits_crop,
+            'crop': None,
             'crop_star': None,
             'crop_type_star': None,
             'crop_type': None
         }
         if self.num_classes > 2:
-            # Crop binary plus edge
+            # Crop|non-crop plus edge
             out['crop_star'] = logits_star_l2
             # Crop-type
             out['crop_type_star'] = logits_star_last
-
-            crop_type_logits = self.crop_type_model(
-                self.gc(
-                    torch.cat(
-                        [
-                            logits_star_h,
-                            logits_distance,
-                            logits_edges,
-                            logits_crop
-                        ],
-                        dim=1
-                    ), batch_size, height, width
-                ),
-                crop_type_star=self.gc(
-                    logits_star_last,
-                    batch_size,
-                    height,
-                    width
-                )
-            )
             # Crop-type (final)
-            out['crop_type'] = self.cg(crop_type_logits)
+            out['crop_type'] = logits_crop
         else:
+            out['crop'] = logits_crop
+            # Crop|non-crop plus edge
             out['crop_star'] = logits_star_last
 
         return out
