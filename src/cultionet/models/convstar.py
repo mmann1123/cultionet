@@ -200,14 +200,12 @@ class StarRNN(torch.nn.Module):
         for iter_ in range(0, time_size):
             hidden_s = self.rnn(x[:, :, iter_, :, :], hidden_s)
 
+        last = self.final_last(hidden_s[-1])
         if self.crop_type_layer:
             last_l2 = self.final_l2(hidden_s[-2])
-            last = self.final_last(hidden_s[-1])
             h = torch.cat([hidden_s[-2], hidden_s[-1]], dim=1)
 
             return h, last_l2, last
         else:
-            last = self.final_last(hidden_s[-1])
-
             # The output is (B x C x H x W)
             return hidden_s[-1], last
