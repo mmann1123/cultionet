@@ -185,8 +185,8 @@ class AttentionGate(torch.nn.Module):
     def forward(self, g: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            g: Higher dimension (gate)
-            x: Lower dimension (upsampled)
+            g: Higher feature dimension, lower spatial resolution
+            x: Lower feature dimension, higher spatial resolution
         """
         h = self.seq(g, x)
 
