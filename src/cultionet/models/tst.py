@@ -26,20 +26,19 @@ class EncoderLayer(torch.nn.Module):
             vdim=d_v,
             batch_first=True
         )
-        self.dropout_attn = torch.nn.Dropout(dropout)
+        self.dropout = torch.nn.Dropout(dropout)
         self.batchnorm_attn = torch.nn.Sequential(
             Transpose(axis_order=(1, 2)),
             torch.nn.BatchNorm1d(d_model),
             Transpose(axis_order=(1, 2))
         )
         # Position-wise Feed-Forward
-        self.ff = torch.nn.Sequential(
+        self.linear_net = torch.nn.Sequential(
             torch.nn.Linear(d_model, d_ff),
-            getattr(torch.nn, activation)(),
             torch.nn.Dropout(dropout),
+            getattr(torch.nn, activation)(),
             torch.nn.Linear(d_ff, d_model)
         )
-        self.dropout_ffn = torch.nn.Dropout(dropout)
         self.batchnorm_ffn = torch.nn.Sequential(
             Transpose(axis_order=(1, 2)),
             torch.nn.BatchNorm1d(d_model),
@@ -50,15 +49,19 @@ class EncoderLayer(torch.nn.Module):
         # Input dimensions -> B x T x Embed_dim
         # Output dimensions -> (B x T x Embed_dim,)
         attn, __ = self.multihead_attn(
-            query=x, key=x, value=x, need_weights=False, average_attn_weights=True
+            query=x,
+            key=x,
+            value=x,
+            need_weights=False,
+            average_attn_weights=True
         )
-        h = x + self.dropout_attn(attn)
-        h = self.batchnorm_attn(h)
-        attn = self.ff(h)
-        h = h + self.dropout_ffn(attn)
-        h = self.batchnorm_ffn(h)
+        x = x + self.dropout(attn)
+        x = self.batchnorm_attn(x)
+        lin = self.linear_net(x)
+        x = x + self.dropout(lin)
+        x = self.batchnorm_ffn(x)
 
-        return h
+        return x
 
 
 class Encoder(torch.nn.Module):
@@ -89,16 +92,16 @@ class Encoder(torch.nn.Module):
         self.layers = torch.nn.ModuleList(layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out = x
-        for lyr in self.layers:
-            out = lyr(out)
+        for layer in self.layers:
+            x = layer(x)
 
-        return out
+        return x
 
 
 class TST(torch.nn.Module):
     """
-    Reference:
+    References:
+        https://pytorch-lightning.readthedocs.io/en/stable/notebooks/course_UvA-DL/05-transformers-and-MH-attention.html
         https://github.com/timeseriesAI/tsai/blob/main/tsai/models/TST.py#L131
 
     Source repository:
@@ -114,7 +117,7 @@ class TST(torch.nn.Module):
         seq_len: int,
         n_layers: int = 3,
         d_model: int = 128,
-        n_heads: int = 16,
+        n_heads: int = 8,
         d_ff: int = 256,
         d_k: T.Optional[int] = None,
         d_v: T.Optional[int] = None,
