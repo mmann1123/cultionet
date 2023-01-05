@@ -46,7 +46,7 @@ def get_norm_values(
             dataset,
             batch_size=batch_size,
             shuffle=True,
-            num_workers=0
+            num_workers=num_workers
         )
 
         data_maxs = torch.zeros(3, dtype=torch.float)

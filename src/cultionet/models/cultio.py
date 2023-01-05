@@ -116,12 +116,6 @@ class CultioNet(torch.nn.Module):
             num_classes_last = self.num_classes
             out_mask_channels = self.num_classes
             base_in_channels = star_rnn_hidden_dim * 2
-
-            self.crop_type_model = CropTypeFinal(
-                in_channels=base_in_channels+1+2+2,
-                out_channels=star_rnn_hidden_dim,
-                out_classes=num_classes_last
-            )
         else:
             # Loss on background:0, crop-type:1, edge:2
             num_classes_last = 3

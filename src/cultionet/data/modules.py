@@ -15,7 +15,7 @@ class EdgeDataModule(pl.LightningDataModule):
         val_ds: T.Optional[EdgeDataset] = None,
         test_ds: T.Optional[EdgeDataset] = None,
         predict_ds: T.Optional[EdgeDataset] = None,
-        batch_size: int = 5,
+        batch_size: int = 4,
         num_workers: int = 0,
         shuffle: bool = True
     ):

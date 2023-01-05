@@ -329,6 +329,13 @@ skfoldcv:
     kwargs:
       default: 0
       type: '&int'
+  num_workers:
+    short: 'n'
+    long: num-workers
+    help: The number of CPUs for data normalization values
+    kwargs:
+      default: 1
+      type: '&int'
 
 train:
   val_frac:
@@ -363,6 +370,13 @@ train:
     short: t
     long: threads
     help: The number of threads per process worker
+    kwargs:
+      default: 1
+      type: '&int'
+  num_workers:
+    short: 'n'
+    long: num-workers
+    help: The number of CPUs for data normalization values
     kwargs:
       default: 1
       type: '&int'
