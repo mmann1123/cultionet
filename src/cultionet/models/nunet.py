@@ -596,7 +596,9 @@ class UNet3Psi(torch.nn.Module):
         out_dist_channels: int = 1,
         out_edge_channels: int = 2,
         out_mask_channels: int = 2,
-        init_filter: int = 64
+        init_filter: int = 32,
+        attention: bool = False,
+        attention_weights: str = 'gate'
     ):
         super(UNet3Psi, self).__init__()
 
@@ -636,19 +638,27 @@ class UNet3Psi(torch.nn.Module):
         # Connect 3
         self.convs_3_1 = UNet3_3_1(
             channels=channels,
-            up_channels=up_channels
+            up_channels=up_channels,
+            attention=attention,
+            attention_weights=attention_weights
         )
         self.convs_2_2 = UNet3_2_2(
             channels=channels,
-            up_channels=up_channels
+            up_channels=up_channels,
+            attention=attention,
+            attention_weights=attention_weights
         )
         self.convs_1_3 = UNet3_1_3(
             channels=channels,
-            up_channels=up_channels
+            up_channels=up_channels,
+            attention=attention,
+            attention_weights=attention_weights
         )
         self.convs_0_4 = UNet3_0_4(
             channels=channels,
-            up_channels=up_channels
+            up_channels=up_channels,
+            attention=attention,
+            attention_weights=attention_weights
         )
 
         self.final_dist = torch.nn.Sequential(
@@ -772,8 +782,6 @@ class ResUNet3Psi(torch.nn.Module):
         attention_weights: str = 'gate'
     ):
         super(ResUNet3Psi, self).__init__()
-
-        self.attention = attention
 
         init_filter = int(init_filter)
         channels = [

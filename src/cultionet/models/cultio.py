@@ -133,7 +133,9 @@ class CultioNet(torch.nn.Module):
                 out_dist_channels=1,
                 out_edge_channels=2,
                 out_mask_channels=2,
-                init_filter=self.filters
+                init_filter=self.filters,
+                attention=True,
+                attention_weights='gate'
             )
         elif model_type == 'ResUNet3Psi':
             self.mask_model = ResUNet3Psi(
