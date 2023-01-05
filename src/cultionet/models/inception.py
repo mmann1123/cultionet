@@ -202,6 +202,7 @@ class InceptionNet(torch.nn.Module):
                 torch.nn.init.constant_(m.bias, 0)
 
     def forward(self, x: torch.Tensor) -> T.Tuple[torch.Tensor, torch.Tensor]:
+        # Input dimensions should be -> B x C x T x H x W
         if len(x.shape) == 4:
             # Single batch
             x = x.unsqueeze(0)
@@ -209,6 +210,7 @@ class InceptionNet(torch.nn.Module):
 
         x = self.input_net(x)
         x = self.inception_blocks(x)
+        # Reduce time to 1 by trilinear interpolation
         x = self.up(
             x, size=(1, height, width), mode='trilinear'
         ).squeeze()
