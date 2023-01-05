@@ -1,6 +1,7 @@
 import typing as T
 
 from .base_layers import (
+    AtrousSpatialPyramid,
     AttentionGate,
     DoubleConv,
     FractalAttention,
@@ -26,7 +27,8 @@ class UNet3Connector(torch.nn.Module):
         n_prev_down: int = 0,
         n_stream_down: int = 0,
         attention: bool = False,
-        attention_weights: str = 'gate'
+        attention_weights: str = 'gate',
+        atrous_spatial_pyramid: bool = False
     ):
         super(UNet3Connector, self).__init__()
 
@@ -63,10 +65,17 @@ class UNet3Connector(torch.nn.Module):
                 pool_size = int(pool_size / 2)
                 self.cat_channels += channels[0]
         if is_side_stream:
-            self.prev = DoubleConv(
-                up_channels,
-                up_channels
-            )
+            if atrous_spatial_pyramid:
+                self.prev = AtrousSpatialPyramid(
+                    up_channels,
+                    up_channels,
+                    dilations=[1, 2, 4, 8]
+                )
+            else:
+                self.prev = DoubleConv(
+                    up_channels,
+                    up_channels
+                )
         else:
             # Backbone, same level
             self.prev_backbone = DoubleConv(
@@ -428,7 +437,8 @@ class UNet3_0_4(torch.nn.Module):
             up_channels=up_channels,
             is_side_stream=False,
             prev_backbone_channel_index=0,
-            n_stream_down=3
+            n_stream_down=3,
+            atrous_spatial_pyramid=True
         )
         self.conv_edge = UNet3Connector(
             channels=channels,
@@ -436,7 +446,8 @@ class UNet3_0_4(torch.nn.Module):
             prev_backbone_channel_index=0,
             n_stream_down=3,
             attention=attention,
-            attention_weights=attention_weights
+            attention_weights=attention_weights,
+            atrous_spatial_pyramid=True
         )
         self.conv_mask = UNet3Connector(
             channels=channels,
@@ -444,7 +455,8 @@ class UNet3_0_4(torch.nn.Module):
             prev_backbone_channel_index=0,
             n_stream_down=3,
             attention=attention,
-            attention_weights=attention_weights
+            attention_weights=attention_weights,
+            atrous_spatial_pyramid=True
         )
 
     def forward(
