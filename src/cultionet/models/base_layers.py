@@ -437,6 +437,41 @@ class ChannelAttention(torch.nn.Module):
         return x * self.module(x)
 
 
+class AtrousSpatialPyramid(torch.nn.Module):
+    """Atrous spatial pyramid pooling
+    """
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        dilations: T.Sequence[int]
+    ):
+        super(AtrousSpatialPyramid, self).__init__()
+
+        self.layers = [
+            ConvBlock2d(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=3,
+                padding=dilation,
+                dilation=dilation
+            ) for dilation in range(0, dilations)
+        ]
+        final_in_channels = out_channels * len(dilations)
+        self.final = ConvBlock2d(
+            in_channels=final_in_channels,
+            out_channels=out_channels,
+            kernel_size=1,
+            padding=0
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        h = torch.cat([layer(x) for layer in self.layers], dim=1)
+        h = self.final(h)
+
+        return h
+
+
 class DoubleConv(torch.nn.Module):
     """A double convolution layer
     """
