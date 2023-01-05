@@ -202,6 +202,9 @@ class InceptionNet(torch.nn.Module):
                 torch.nn.init.constant_(m.bias, 0)
 
     def forward(self, x: torch.Tensor) -> T.Tuple[torch.Tensor, torch.Tensor]:
+        if len(x.shape) == 4:
+            # Single batch
+            x = x.unsqueeze(0)
         height, width = x.shape[-2:]
 
         x = self.input_net(x)
