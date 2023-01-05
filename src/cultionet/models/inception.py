@@ -214,6 +214,7 @@ class InceptionNet(torch.nn.Module):
         x = self.up(
             x, size=(1, height, width), mode='trilinear'
         ).squeeze()
+        # Input dimensions should be -> B x C x H x W
         if len(x.shape) == 3:
             x = x.unsqueeze(0)
         x = self.final_reduce(x)
