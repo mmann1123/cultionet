@@ -702,7 +702,7 @@ class CultioLitModel(pl.LightningModule):
         # sample_weights = self.get_edge_weights(batch, predictions['edge'], true_edge)
         edge_loss = self.edge_loss(predictions['edge'], true_edge)
         # Upstream (deep) loss on crop|non-crop + edge
-        crop_star_loss = self.crop_star_loss(
+        crop_time_loss = self.crop_time_loss(
             predictions['crop_star'], true_crop_plus_edge
         )
 
@@ -710,7 +710,7 @@ class CultioLitModel(pl.LightningModule):
         loss = (
             dist_loss
             + edge_loss
-            + crop_star_loss
+            + crop_time_loss
         )
 
         if predictions['crop'] is not None:
@@ -719,14 +719,14 @@ class CultioLitModel(pl.LightningModule):
             loss = loss + crop_loss
         if predictions['crop_type'] is not None:
             # Upstream (deep) loss on crop-type
-            crop_type_star_loss = self.crop_type_star_loss(
+            crop_type_time_loss = self.crop_type_time_loss(
                 predictions['crop_type_star'], true_crop_type
             )
             # Loss on crop-type
             crop_type_loss = self.crop_loss(
                 predictions['crop_type'], true_crop_type
             )
-            loss = loss + crop_type_star_loss + crop_type_loss
+            loss = loss + crop_type_time_loss + crop_type_loss
 
         return loss
 
@@ -880,9 +880,9 @@ class CultioLitModel(pl.LightningModule):
         self.dist_loss = TanimotoDistLoss()
         self.edge_loss = TanimotoDistLoss(scale_pos_weight=True)
         self.crop_loss = TanimotoDistLoss(scale_pos_weight=True)
-        self.crop_star_loss = TanimotoDistLoss(scale_pos_weight=True)
+        self.crop_time_loss = TanimotoDistLoss(scale_pos_weight=True)
         if self.num_classes > 2:
-            self.crop_type_star_loss = TanimotoDistLoss(scale_pos_weight=True)
+            self.crop_type_time_loss = TanimotoDistLoss(scale_pos_weight=True)
 
     def configure_optimizers(self):
         params_list = list(self.cultionet_model.parameters())

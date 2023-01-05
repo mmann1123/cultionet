@@ -1,9 +1,9 @@
 import typing as T
 
 from . import model_utils
-from .base_layers import ConvBlock2d, ConvBlock3d
+from .base_layers import ConvBlock2d
 from .nunet import UNet3Psi, ResUNet3Psi
-from .convstar import StarRNN
+from .inception import InceptionNet
 
 import torch
 from torch_geometric.data import Data
@@ -122,13 +122,10 @@ class CultioNet(torch.nn.Module):
             out_mask_channels = 2
             base_in_channels = star_rnn_hidden_dim
 
-        self.star_rnn = StarRNN(
-            input_dim=self.ds_num_bands,
-            hidden_dim=star_rnn_hidden_dim,
-            n_layers=star_rnn_n_layers,
-            num_classes_l2=num_classes_l2,
-            num_classes_last=num_classes_last,
-            crop_type_layer=True if self.num_classes > 2 else False
+        self.inception_model = InceptionNet(
+            in_channels=self.ds_num_bands,
+            out_channels=star_rnn_hidden_dim,
+            num_classes_last=num_classes_last
         )
         if model_type == 'UNet3Psi':
             self.mask_model = UNet3Psi(
@@ -167,21 +164,21 @@ class CultioNet(torch.nn.Module):
         time_stream = time_stream.reshape(
             nbatch, self.ds_num_bands, self.ds_num_time, height, width
         )
-        # (1) RNN ConvStar
+        # (1) InceptionNet
         # Crop/Non-crop and Crop types
         if self.num_classes > 2:
-            logits_star_h, logits_star_l2, logits_star_last = self.star_rnn(time_stream)
-            logits_star_l2 = self.cg(logits_star_l2)
+            logits_time_h, logits_time_l2, logits_time_last = self.inception_model(time_stream)
+            logits_time_l2 = self.cg(logits_time_l2)
         else:
-            logits_star_h, logits_star_last = self.star_rnn(time_stream)
+            logits_time_h, logits_time_last = self.inception_model(time_stream)
 
-        logits_star_h = self.cg(logits_star_h)
-        logits_star_last = self.cg(logits_star_last)
+        logits_time_h = self.cg(logits_time_h)
+        logits_time_last = self.cg(logits_time_last)
 
         # (3) Main stream
         logits = self.mask_model(
             self.gc(
-                logits_star_h, batch_size, height, width
+                logits_time_h, batch_size, height, width
             )
         )
         logits_distance = self.cg(logits['dist'])
@@ -198,14 +195,14 @@ class CultioNet(torch.nn.Module):
         }
         if self.num_classes > 2:
             # Crop|non-crop plus edge
-            out['crop_star'] = logits_star_l2
+            out['crop_star'] = logits_time_l2
             # Crop-type
-            out['crop_type_star'] = logits_star_last
+            out['crop_type_star'] = logits_time_last
             # Crop-type (final)
             out['crop_type'] = logits_crop
         else:
             out['crop'] = logits_crop
             # Crop|non-crop plus edge
-            out['crop_star'] = logits_star_last
+            out['crop_star'] = logits_time_last
 
         return out

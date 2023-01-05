@@ -32,14 +32,19 @@ from .unet_parts import (
 import torch
 
 
-def weights_init_kaiming(m):
+def weights_init_kaiming(m: object, nonlinearity: str = 'leaky_relu'):
     """
     Source:
         https://github.com/ZJUGiveLab/UNet-Version/blob/master/models/init_weights.py
     """
     classname = m.__class__.__name__
     if classname.find('Conv') != -1:
-        torch.nn.init.kaiming_normal_(m.weight.data, a=0, mode='fan_in')
+        torch.nn.init.kaiming_normal_(
+            m.weight.data,
+            a=0,
+            mode='fan_in',
+            nonlinearity=nonlinearity
+        )
     elif classname.find('Linear') != -1:
         torch.nn.init.kaiming_normal_(m.weight.data, a=0, mode='fan_in')
     elif classname.find('BatchNorm') != -1:
