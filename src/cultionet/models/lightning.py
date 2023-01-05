@@ -886,11 +886,17 @@ class CultioLitModel(pl.LightningModule):
 
     def configure_optimizers(self):
         params_list = list(self.cultionet_model.parameters())
-        optimizer = torch.optim.AdamW(
+        # optimizer = torch.optim.AdamW(
+        #     params_list,
+        #     lr=self.learning_rate,
+        #     weight_decay=self.weight_decay,
+        #     eps=self.eps
+        # )
+        optimizer = torch.optim.SGD(
             params_list,
             lr=self.learning_rate,
             weight_decay=self.weight_decay,
-            eps=self.eps
+            momentum=0.9
         )
         lr_scheduler = ReduceLROnPlateau(
             optimizer,
