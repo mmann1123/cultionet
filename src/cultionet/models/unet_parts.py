@@ -678,9 +678,7 @@ class ResUNet3_3_1(torch.nn.Module):
             is_side_stream=False,
             prev_backbone_channel_index=3,
             n_pools=3,
-            dilations=dilations,
-            attention=attention,
-            attention_weights=attention_weights
+            dilations=dilations
         )
         # Edge stream connection
         self.conv_edge = ResUNet3Connector(
@@ -759,9 +757,7 @@ class ResUNet3_2_2(torch.nn.Module):
             prev_backbone_channel_index=2,
             n_pools=2,
             n_stream_down=1,
-            dilations=dilations,
-            attention=attention,
-            attention_weights=attention_weights
+            dilations=dilations
         )
         self.conv_edge = ResUNet3Connector(
             channels=channels,
@@ -846,9 +842,7 @@ class ResUNet3_1_3(torch.nn.Module):
             prev_backbone_channel_index=1,
             n_pools=1,
             n_stream_down=2,
-            dilations=dilations,
-            attention=attention,
-            attention_weights=attention_weights
+            dilations=dilations
         )
         self.conv_edge = ResUNet3Connector(
             channels=channels,
@@ -934,9 +928,7 @@ class ResUNet3_0_4(torch.nn.Module):
             is_side_stream=False,
             prev_backbone_channel_index=0,
             n_stream_down=3,
-            dilations=dilations,
-            attention=attention,
-            attention_weights=attention_weights
+            dilations=dilations
         )
         self.conv_edge = ResUNet3Connector(
             channels=channels,
