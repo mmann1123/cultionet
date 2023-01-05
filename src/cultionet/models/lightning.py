@@ -776,9 +776,9 @@ class CultioLitModel(pl.LightningModule):
         # Jaccard/IoU
         edge_jaccard = self.edge_jaccard(edge_ypred, edge_ytrue)
 
-        crop_mcc = None
-        crop_dice = None
-        crop_jaccard = None
+        crop_mcc = torch.zeros([1], dtype=batch.bdist.dtype, device=self.device)
+        crop_dice = torch.zeros([1], dtype=batch.bdist.dtype, device=self.device)
+        crop_jaccard = torch.zeros([1], dtype=batch.bdist.dtype, device=self.device)
         if predictions['crop'] is not None:
             crop_ypred = self.probas_to_labels(
                 self.logits_to_probas(
