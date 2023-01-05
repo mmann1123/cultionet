@@ -598,7 +598,9 @@ class UNet3Psi(torch.nn.Module):
         out_mask_channels: int = 2,
         init_filter: int = 32,
         attention: bool = False,
-        attention_weights: str = 'gate'
+        attention_weights: str = 'gate',
+        atrous_spatial_pyramid: bool = False,
+        depthwise_conv: bool = False
     ):
         super(UNet3Psi, self).__init__()
 
@@ -620,19 +622,23 @@ class UNet3Psi(torch.nn.Module):
         )
         self.conv1_0 = PoolConv(
             channels[0],
-            channels[1]
+            channels[1],
+            depthwise_conv=depthwise_conv
         )
         self.conv2_0 = PoolConv(
             channels[1],
-            channels[2]
+            channels[2],
+            depthwise_conv=depthwise_conv
         )
         self.conv3_0 = PoolConv(
             channels[2],
-            channels[3]
+            channels[3],
+            depthwise_conv=depthwise_conv
         )
         self.conv4_0 = PoolConv(
             channels[3],
-            channels[4]
+            channels[4],
+            depthwise_conv=depthwise_conv
         )
 
         # Connect 3
@@ -640,25 +646,30 @@ class UNet3Psi(torch.nn.Module):
             channels=channels,
             up_channels=up_channels,
             attention=attention,
-            attention_weights=attention_weights
+            attention_weights=attention_weights,
+            depthwise_conv=depthwise_conv
         )
         self.convs_2_2 = UNet3_2_2(
             channels=channels,
             up_channels=up_channels,
             attention=attention,
-            attention_weights=attention_weights
+            attention_weights=attention_weights,
+            depthwise_conv=depthwise_conv
         )
         self.convs_1_3 = UNet3_1_3(
             channels=channels,
             up_channels=up_channels,
             attention=attention,
-            attention_weights=attention_weights
+            attention_weights=attention_weights,
+            depthwise_conv=depthwise_conv
         )
         self.convs_0_4 = UNet3_0_4(
             channels=channels,
             up_channels=up_channels,
             attention=attention,
-            attention_weights=attention_weights
+            attention_weights=attention_weights,
+            atrous_spatial_pyramid=atrous_spatial_pyramid,
+            depthwise_conv=depthwise_conv
         )
 
         self.final_dist = torch.nn.Sequential(

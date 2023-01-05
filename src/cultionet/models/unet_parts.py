@@ -3,6 +3,7 @@ import typing as T
 from .base_layers import (
     AtrousSpatialPyramid,
     AttentionGate,
+    DepthwiseConvBlock2d,
     DoubleConv,
     FractalAttention,
     PoolConv,
@@ -28,7 +29,8 @@ class UNet3Connector(torch.nn.Module):
         n_stream_down: int = 0,
         attention: bool = False,
         attention_weights: str = 'gate',
-        atrous_spatial_pyramid: bool = False
+        atrous_spatial_pyramid: bool = False,
+        depthwise_conv: bool = False
     ):
         super(UNet3Connector, self).__init__()
 
@@ -59,7 +61,8 @@ class UNet3Connector(torch.nn.Module):
                     PoolConv(
                         channels[n],
                         channels[0],
-                        pool_size=pool_size
+                        pool_size=pool_size,
+                        depthwise_conv=depthwise_conv
                     )
                 )
                 pool_size = int(pool_size / 2)
@@ -69,18 +72,20 @@ class UNet3Connector(torch.nn.Module):
                 self.prev = AtrousSpatialPyramid(
                     up_channels,
                     up_channels,
-                    dilations=[1, 2, 4, 8]
+                    dilations=[1, 2, 3, 4]
                 )
             else:
                 self.prev = DoubleConv(
                     up_channels,
-                    up_channels
+                    up_channels,
+                    depthwise_conv=depthwise_conv
                 )
         else:
             # Backbone, same level
             self.prev_backbone = DoubleConv(
                 channels[prev_backbone_channel_index],
-                up_channels
+                up_channels,
+                depthwise_conv=depthwise_conv
             )
         if not self.attention or (self.n_stream_down == 0):
             self.cat_channels += up_channels
@@ -92,7 +97,8 @@ class UNet3Connector(torch.nn.Module):
                     f'prev_{n}',
                     DoubleConv(
                         up_channels,
-                        up_channels
+                        up_channels,
+                        depthwise_conv=depthwise_conv
                     )
                 )
                 self.cat_channels += up_channels
@@ -116,14 +122,16 @@ class UNet3Connector(torch.nn.Module):
                     f'stream_{n}',
                     DoubleConv(
                         in_stream_channels,
-                        up_channels
+                        up_channels,
+                        depthwise_conv=depthwise_conv
                     )
                 )
                 self.cat_channels += up_channels
 
         self.conv4_0 = DoubleConv(
             channels[4],
-            channels[0]
+            channels[0],
+            depthwise_conv=depthwise_conv
         )
         self.cat_channels += channels[0]
 
@@ -191,7 +199,8 @@ class UNet3_3_1(torch.nn.Module):
         channels: T.Sequence[int],
         up_channels: int,
         attention: bool = False,
-        attention_weights: str = 'gate'
+        attention_weights: str = 'gate',
+        depthwise_conv: bool = False
     ):
         super(UNet3_3_1, self).__init__()
 
@@ -203,7 +212,8 @@ class UNet3_3_1(torch.nn.Module):
             up_channels=up_channels,
             is_side_stream=False,
             prev_backbone_channel_index=3,
-            n_pools=3
+            n_pools=3,
+            depthwise_conv=depthwise_conv
         )
         # Edge stream connection
         self.conv_edge = UNet3Connector(
@@ -212,7 +222,8 @@ class UNet3_3_1(torch.nn.Module):
             prev_backbone_channel_index=3,
             n_pools=3,
             attention=attention,
-            attention_weights=attention_weights
+            attention_weights=attention_weights,
+            depthwise_conv=depthwise_conv
         )
         # Mask stream connection
         self.conv_mask = UNet3Connector(
@@ -221,7 +232,8 @@ class UNet3_3_1(torch.nn.Module):
             prev_backbone_channel_index=3,
             n_pools=3,
             attention=attention,
-            attention_weights=attention_weights
+            attention_weights=attention_weights,
+            depthwise_conv=depthwise_conv
         )
 
     def forward(
@@ -266,7 +278,8 @@ class UNet3_2_2(torch.nn.Module):
         channels: T.Sequence[int],
         up_channels: int,
         attention: bool = False,
-        attention_weights: str = 'gate'
+        attention_weights: str = 'gate',
+        depthwise_conv: bool = False
     ):
         super(UNet3_2_2, self).__init__()
 
@@ -278,7 +291,8 @@ class UNet3_2_2(torch.nn.Module):
             is_side_stream=False,
             prev_backbone_channel_index=2,
             n_pools=2,
-            n_stream_down=1
+            n_stream_down=1,
+            depthwise_conv=depthwise_conv
         )
         self.conv_edge = UNet3Connector(
             channels=channels,
@@ -287,7 +301,8 @@ class UNet3_2_2(torch.nn.Module):
             n_pools=2,
             n_stream_down=1,
             attention=attention,
-            attention_weights=attention_weights
+            attention_weights=attention_weights,
+            depthwise_conv=depthwise_conv
         )
         self.conv_mask = UNet3Connector(
             channels=channels,
@@ -296,7 +311,8 @@ class UNet3_2_2(torch.nn.Module):
             n_pools=2,
             n_stream_down=1,
             attention=attention,
-            attention_weights=attention_weights
+            attention_weights=attention_weights,
+            depthwise_conv=depthwise_conv
         )
 
     def forward(
@@ -345,7 +361,8 @@ class UNet3_1_3(torch.nn.Module):
         channels: T.Sequence[int],
         up_channels: int,
         attention: bool = False,
-        attention_weights: str = 'gate'
+        attention_weights: str = 'gate',
+        depthwise_conv: bool = False
     ):
         super(UNet3_1_3, self).__init__()
 
@@ -357,7 +374,8 @@ class UNet3_1_3(torch.nn.Module):
             is_side_stream=False,
             prev_backbone_channel_index=1,
             n_pools=1,
-            n_stream_down=2
+            n_stream_down=2,
+            depthwise_conv=depthwise_conv
         )
         self.conv_edge = UNet3Connector(
             channels=channels,
@@ -366,7 +384,8 @@ class UNet3_1_3(torch.nn.Module):
             n_pools=1,
             n_stream_down=2,
             attention=attention,
-            attention_weights=attention_weights
+            attention_weights=attention_weights,
+            depthwise_conv=depthwise_conv
         )
         self.conv_mask = UNet3Connector(
             channels=channels,
@@ -375,7 +394,8 @@ class UNet3_1_3(torch.nn.Module):
             n_pools=1,
             n_stream_down=2,
             attention=attention,
-            attention_weights=attention_weights
+            attention_weights=attention_weights,
+            depthwise_conv=depthwise_conv
         )
 
     def forward(
@@ -426,7 +446,9 @@ class UNet3_0_4(torch.nn.Module):
         channels: T.Sequence[int],
         up_channels: int,
         attention: bool = False,
-        attention_weights: str = 'gate'
+        attention_weights: str = 'gate',
+        atrous_spatial_pyramid: bool = False,
+        depthwise_conv: bool = False
     ):
         super(UNet3_0_4, self).__init__()
 
@@ -438,7 +460,8 @@ class UNet3_0_4(torch.nn.Module):
             is_side_stream=False,
             prev_backbone_channel_index=0,
             n_stream_down=3,
-            atrous_spatial_pyramid=True
+            atrous_spatial_pyramid=atrous_spatial_pyramid,
+            depthwise_conv=depthwise_conv
         )
         self.conv_edge = UNet3Connector(
             channels=channels,
@@ -447,7 +470,8 @@ class UNet3_0_4(torch.nn.Module):
             n_stream_down=3,
             attention=attention,
             attention_weights=attention_weights,
-            atrous_spatial_pyramid=True
+            atrous_spatial_pyramid=atrous_spatial_pyramid,
+            depthwise_conv=depthwise_conv
         )
         self.conv_mask = UNet3Connector(
             channels=channels,
@@ -456,7 +480,8 @@ class UNet3_0_4(torch.nn.Module):
             n_stream_down=3,
             attention=attention,
             attention_weights=attention_weights,
-            atrous_spatial_pyramid=True
+            atrous_spatial_pyramid=atrous_spatial_pyramid,
+            depthwise_conv=depthwise_conv
         )
 
     def forward(

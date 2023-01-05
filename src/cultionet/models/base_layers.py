@@ -31,6 +31,76 @@ class Squeeze(torch.nn.Module):
         return x.squeeze()
 
 
+class DepthwiseConv2d(torch.nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        padding: int = 0,
+        dilation: int = 1,
+        bias: bool = False
+    ):
+        super(DepthwiseConv2d, self).__init__()
+
+        layers = [
+            torch.nn.Conv2d(
+                in_channels,
+                in_channels,
+                kernel_size=kernel_size,
+                padding=padding,
+                dilation=dilation,
+                groups=in_channels
+            ),
+            torch.nn.Conv2d(
+                in_channels,
+                out_channels,
+                kernel_size=1,
+                padding=0,
+                bias=bias
+            )
+        ]
+        self.seq = torch.nn.Sequential(*layers)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.seq(x)
+
+
+class DepthwiseConvBlock2d(torch.nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        padding: int = 0,
+        dilation: int = 1,
+        add_activation: bool = True,
+        activation_type: str = 'LeakyReLU'
+    ):
+        super(DepthwiseConvBlock2d, self).__init__()
+
+        layers = [
+            DepthwiseConv2d(
+                in_channels,
+                out_channels,
+                kernel_size=kernel_size,
+                padding=padding,
+                dilation=dilation,
+                bias=False
+            ),
+            torch.nn.BatchNorm2d(out_channels)
+        ]
+        if add_activation:
+            layers += [
+                getattr(torch.nn, activation_type)(inplace=False)
+            ]
+
+        self.seq = torch.nn.Sequential(*layers)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.seq(x)
+
+
 class ConvBlock2d(torch.nn.Module):
     def __init__(
         self,
@@ -455,7 +525,7 @@ class AtrousSpatialPyramid(torch.nn.Module):
                 kernel_size=3,
                 padding=dilation,
                 dilation=dilation
-            ) for dilation in range(0, dilations)
+            ) for dilation in dilations
         ]
         final_in_channels = out_channels * len(dilations)
         self.final = ConvBlock2d(
@@ -478,18 +548,21 @@ class DoubleConv(torch.nn.Module):
     def __init__(
         self,
         in_channels: int,
-        out_channels: int
+        out_channels: int,
+        depthwise_conv: bool = False
     ):
         super(DoubleConv, self).__init__()
 
+        convolution = DepthwiseConvBlock2d if depthwise_conv else DoubleConv
+
         self.seq = torch.nn.Sequential(
-            ConvBlock2d(
+            convolution(
                 in_channels=in_channels,
                 out_channels=out_channels,
                 kernel_size=3,
                 padding=1
             ),
-            ConvBlock2d(
+            convolution(
                 in_channels=out_channels,
                 out_channels=out_channels,
                 kernel_size=3,
@@ -534,14 +607,21 @@ class PoolConv(torch.nn.Module):
         in_channels: int,
         out_channels: int,
         pool_size: int = 2,
-        dropout: T.Optional[float] = None
+        dropout: T.Optional[float] = None,
+        depthwise_conv: T.Optional[bool] = False
     ):
         super(PoolConv, self).__init__()
 
         layers = [torch.nn.MaxPool2d(pool_size)]
         if dropout is not None:
             layers += [torch.nn.Dropout(dropout)]
-        layers += [DoubleConv(in_channels, out_channels)]
+        layers += [
+            DoubleConv(
+                in_channels,
+                out_channels,
+                depthwise_conv=depthwise_conv
+            )
+        ]
         self.seq = torch.nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
