@@ -549,24 +549,29 @@ class DoubleConv(torch.nn.Module):
         self,
         in_channels: int,
         out_channels: int,
+        kernel_size: int,
+        padding: int,
+        dilation: int,
         depthwise_conv: bool = False
     ):
         super(DoubleConv, self).__init__()
 
-        convolution = DepthwiseConvBlock2d if depthwise_conv else DoubleConv
+        convolution = DepthwiseConvBlock2d if depthwise_conv else torch.nn.Conv2d
 
         self.seq = torch.nn.Sequential(
             convolution(
                 in_channels=in_channels,
                 out_channels=out_channels,
-                kernel_size=3,
-                padding=1
+                kernel_size=kernel_size,
+                padding=padding,
+                dilation=dilation
             ),
             convolution(
                 in_channels=out_channels,
                 out_channels=out_channels,
-                kernel_size=3,
-                padding=1
+                kernel_size=kernel_size,
+                padding=padding,
+                dilation=dilation
             )
         )
 
