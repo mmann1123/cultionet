@@ -549,9 +549,9 @@ class DoubleConv(torch.nn.Module):
         self,
         in_channels: int,
         out_channels: int,
-        kernel_size: int,
-        padding: int,
-        dilation: int,
+        kernel_size: int = 3,
+        padding: int = 1,
+        dilation: int = 1,
         depthwise_conv: bool = False
     ):
         super(DoubleConv, self).__init__()
