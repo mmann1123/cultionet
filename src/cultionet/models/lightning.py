@@ -433,13 +433,14 @@ class CultioLitModel(pl.LightningModule):
         num_time_features: int = None,
         num_classes: int = 2,
         filters: int = 32,
-        star_rnn_n_layers: int = 5,
+        star_rnn_n_layers: int = 4,
+        optimizer: str = 'AdamW',
         learning_rate: float = 1e-4,
         weight_decay: float = 0.01,
         eps: float = 1e-8,
         ckpt_name: str = 'last',
         model_name: str = 'cultionet',
-        model_type: str = 'ResUNet3Psi',
+        model_type: str = 'UNet3Psi',
         class_weights: T.Sequence[float] = None,
         edge_weights: T.Sequence[float] = None,
         edge_class: T.Optional[int] = None,
@@ -452,6 +453,7 @@ class CultioLitModel(pl.LightningModule):
 
         self.save_hyperparameters()
 
+        self.optimizer = optimizer
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.eps = eps
@@ -886,18 +888,23 @@ class CultioLitModel(pl.LightningModule):
 
     def configure_optimizers(self):
         params_list = list(self.cultionet_model.parameters())
-        # optimizer = torch.optim.AdamW(
-        #     params_list,
-        #     lr=self.learning_rate,
-        #     weight_decay=self.weight_decay,
-        #     eps=self.eps
-        # )
-        optimizer = torch.optim.SGD(
-            params_list,
-            lr=self.learning_rate,
-            weight_decay=self.weight_decay,
-            momentum=0.9
-        )
+        if self.optimizer == 'AdamW':
+            optimizer = torch.optim.AdamW(
+                params_list,
+                lr=self.learning_rate,
+                weight_decay=self.weight_decay,
+                eps=self.eps
+            )
+        elif self.optimizer == 'SGD':
+            optimizer = torch.optim.SGD(
+                params_list,
+                lr=self.learning_rate,
+                weight_decay=self.weight_decay,
+                momentum=0.9
+            )
+        else:
+            raise NameError("Choose either 'AdamW' or 'SGD'.")
+        
         lr_scheduler = ReduceLROnPlateau(
             optimizer,
             factor=0.1,
