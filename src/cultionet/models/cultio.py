@@ -136,7 +136,7 @@ class CultioNet(torch.nn.Module):
                 init_filter=self.filters,
                 attention=True,
                 attention_weights='gate',
-                atrous_spatial_pyramid=True,
+                atrous_spatial_pyramid=False,
                 depthwise_conv=True
             )
         elif model_type == 'ResUNet3Psi':
