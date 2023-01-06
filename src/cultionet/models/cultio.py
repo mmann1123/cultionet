@@ -137,7 +137,7 @@ class CultioNet(torch.nn.Module):
                 attention=True,
                 attention_weights='gate',
                 atrous_spatial_pyramid=True,
-                depthwise_conv=True
+                depthwise_conv=False
             )
         elif model_type == 'ResUNet3Psi':
             self.mask_model = ResUNet3Psi(
@@ -146,13 +146,15 @@ class CultioNet(torch.nn.Module):
                 out_edge_channels=2,
                 out_mask_channels=out_mask_channels,
                 init_filter=self.filters,
-                attention=False,
+                attention=True,
                 attention_weights='gate',
                 atrous_spatial_pyramid=True,
-                depthwise_conv=True
+                depthwise_conv=False
             )
         else:
-            raise NameError('Model type not supported.')
+            raise NameError(
+                "The model type is not supported. Choose either 'UNet3Psi' or 'ResUNet3Psi'."
+            )
 
     def forward(
         self, data: Data
