@@ -60,8 +60,7 @@ class UNet3Connector(torch.nn.Module):
                     PoolConv(
                         channels[n],
                         channels[0],
-                        pool_size=pool_size,
-                        depthwise_conv=depthwise_conv
+                        pool_size=pool_size
                     )
                 )
                 pool_size = int(pool_size / 2)
@@ -129,8 +128,7 @@ class UNet3Connector(torch.nn.Module):
 
         self.conv4_0 = DoubleConv(
             channels[4],
-            channels[0],
-            depthwise_conv=depthwise_conv
+            channels[0]
         )
         self.cat_channels += channels[0]
 
@@ -569,8 +567,7 @@ class ResUNet3Connector(torch.nn.Module):
                         channels[n],
                         channels[0],
                         pool_size=pool_size,
-                        dilations=dilations,
-                        depthwise_conv=depthwise_conv
+                        dilations=dilations
                     )
                 )
                 pool_size = int(pool_size / 2)

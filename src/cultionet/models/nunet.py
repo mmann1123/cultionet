@@ -622,23 +622,19 @@ class UNet3Psi(torch.nn.Module):
         )
         self.conv1_0 = PoolConv(
             channels[0],
-            channels[1],
-            depthwise_conv=depthwise_conv
+            channels[1]
         )
         self.conv2_0 = PoolConv(
             channels[1],
-            channels[2],
-            depthwise_conv=depthwise_conv
+            channels[2]
         )
         self.conv3_0 = PoolConv(
             channels[2],
-            channels[3],
-            depthwise_conv=depthwise_conv
+            channels[3]
         )
         self.conv4_0 = PoolConv(
             channels[3],
-            channels[4],
-            depthwise_conv=depthwise_conv
+            channels[4]
         )
 
         # Connect 3

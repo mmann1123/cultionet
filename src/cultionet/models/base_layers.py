@@ -148,6 +148,7 @@ class ResBlock2d(torch.nn.Module):
         kernel_size: int,
         padding: int = 0,
         dilation: int = 1,
+        activation_type: str = 'LeakyReLU',
         depthwise_conv: T.Optional[bool] = False
     ):
         super(ResBlock2d, self).__init__()
@@ -156,7 +157,7 @@ class ResBlock2d(torch.nn.Module):
 
         layers = [
             torch.nn.BatchNorm2d(in_channels),
-            torch.nn.LeakyReLU(inplace=False),
+            getattr(torch.nn, activation_type)(inplace=False),
             convolution(
                 in_channels,
                 out_channels,
@@ -525,15 +526,17 @@ class AtrousSpatialPyramid(torch.nn.Module):
     ):
         super(AtrousSpatialPyramid, self).__init__()
 
-        self.layers = [
-            ConvBlock2d(
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_size=3,
-                padding=dilation,
-                dilation=dilation
-            ) for dilation in dilations
-        ]
+        self.layers = torch.nn.ModuleList(
+            [
+                ConvBlock2d(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    kernel_size=3,
+                    padding=dilation,
+                    dilation=dilation
+                ) for dilation in dilations
+            ]
+        )
         final_in_channels = out_channels * len(dilations)
         self.final = ConvBlock2d(
             in_channels=final_in_channels,
@@ -543,7 +546,8 @@ class AtrousSpatialPyramid(torch.nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = torch.cat([layer(x) for layer in self.layers], dim=1)
+        h = [layer(x) for layer in self.layers]
+        h = torch.cat(h, dim=1)
         h = self.final(h)
 
         return h
@@ -563,7 +567,7 @@ class DoubleConv(torch.nn.Module):
     ):
         super(DoubleConv, self).__init__()
 
-        convolution = DepthwiseConv2d if depthwise_conv else torch.nn.Conv2d
+        convolution = DepthwiseConvBlock2d if depthwise_conv else ConvBlock2d
 
         self.seq = torch.nn.Sequential(
             convolution(

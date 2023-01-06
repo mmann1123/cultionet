@@ -136,7 +136,7 @@ class CultioNet(torch.nn.Module):
                 init_filter=self.filters,
                 attention=True,
                 attention_weights='gate',
-                atrous_spatial_pyramid=False,
+                atrous_spatial_pyramid=True,
                 depthwise_conv=True
             )
         elif model_type == 'ResUNet3Psi':
@@ -148,7 +148,7 @@ class CultioNet(torch.nn.Module):
                 init_filter=self.filters,
                 attention=True,
                 attention_weights='gate',
-                depthwise_conv=True
+                depthwise_conv=False
             )
         else:
             raise NameError('Model type not supported.')
