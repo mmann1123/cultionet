@@ -50,7 +50,8 @@ class DepthwiseConv2d(torch.nn.Module):
                 kernel_size=kernel_size,
                 padding=padding,
                 dilation=dilation,
-                groups=in_channels
+                groups=in_channels,
+                bias=True
             ),
             torch.nn.Conv2d(
                 in_channels,
@@ -110,12 +111,15 @@ class ConvBlock2d(torch.nn.Module):
         padding: int = 0,
         dilation: int = 1,
         add_activation: bool = True,
-        activation_type: str = 'LeakyReLU'
+        activation_type: str = 'LeakyReLU',
+        depthwise_conv: T.Optional[bool] = False
     ):
         super(ConvBlock2d, self).__init__()
 
+        convolution = DepthwiseConv2d if depthwise_conv else torch.nn.Conv2d
+
         layers = [
-            torch.nn.Conv2d(
+            convolution(
                 in_channels,
                 out_channels,
                 kernel_size=kernel_size,
@@ -143,14 +147,17 @@ class ResBlock2d(torch.nn.Module):
         out_channels: int,
         kernel_size: int,
         padding: int = 0,
-        dilation: int = 1
+        dilation: int = 1,
+        depthwise_conv: T.Optional[bool] = False
     ):
         super(ResBlock2d, self).__init__()
+
+        convolution = DepthwiseConv2d if depthwise_conv else torch.nn.Conv2d
 
         layers = [
             torch.nn.BatchNorm2d(in_channels),
             torch.nn.LeakyReLU(inplace=False),
-            torch.nn.Conv2d(
+            convolution(
                 in_channels,
                 out_channels,
                 kernel_size=kernel_size,
@@ -556,7 +563,7 @@ class DoubleConv(torch.nn.Module):
     ):
         super(DoubleConv, self).__init__()
 
-        convolution = DepthwiseConvBlock2d if depthwise_conv else torch.nn.Conv2d
+        convolution = DepthwiseConv2d if depthwise_conv else torch.nn.Conv2d
 
         self.seq = torch.nn.Sequential(
             convolution(
@@ -669,7 +676,8 @@ class ResidualConv(torch.nn.Module):
         out_channels: int,
         init_conv: bool = False,
         channel_attention: bool = False,
-        dilations: T.List[int] = None
+        dilations: T.List[int] = None,
+        depthwise_conv: T.Optional[bool] = False
     ):
         super(ResidualConv, self).__init__()
 
@@ -682,7 +690,8 @@ class ResidualConv(torch.nn.Module):
                     in_channels=in_channels,
                     out_channels=out_channels,
                     kernel_size=3,
-                    padding=1
+                    padding=1,
+                    depthwise_conv=depthwise_conv
                 )
             ]
             in_channels = out_channels
@@ -692,7 +701,8 @@ class ResidualConv(torch.nn.Module):
                 in_channels=in_channels,
                 out_channels=out_channels,
                 kernel_size=3,
-                padding=1
+                padding=1,
+                depthwise_conv=depthwise_conv
             )
         ]
         if dilations is not None:
@@ -703,7 +713,8 @@ class ResidualConv(torch.nn.Module):
                         out_channels=out_channels,
                         kernel_size=3,
                         padding=dilation,
-                        dilation=dilation
+                        dilation=dilation,
+                        depthwise_conv=depthwise_conv
                     )
                 ]
 
@@ -715,7 +726,8 @@ class ResidualConv(torch.nn.Module):
             in_channels=init_in_channels,
             out_channels=out_channels,
             kernel_size=1,
-            add_activation=False
+            add_activation=False,
+            depthwise_conv=depthwise_conv
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -785,9 +797,10 @@ class PoolResidualConv(torch.nn.Module):
         out_channels: int,
         pool_size: int = 2,
         dropout: T.Optional[float] = None,
-        dilations: T.List[int] = None,
-        channel_attention: bool = False,
-        res_blocks: int = 0
+        dilations: T.Optional[T.List[int]] = None,
+        channel_attention: T.Optional[bool] = False,
+        res_blocks: T.Optional[int] = 0,
+        depthwise_conv: T.Optional[bool] = False
     ):
         super(PoolResidualConv, self).__init__()
 
@@ -819,7 +832,8 @@ class PoolResidualConv(torch.nn.Module):
                     in_channels,
                     out_channels,
                     channel_attention=channel_attention,
-                    dilations=dilations
+                    dilations=dilations,
+                    depthwise_conv=depthwise_conv
                 )
             ]
 

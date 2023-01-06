@@ -790,7 +790,8 @@ class ResUNet3Psi(torch.nn.Module):
         init_filter: int = 64,
         dilations: T.List[int] = None,
         attention: bool = False,
-        attention_weights: str = 'gate'
+        attention_weights: str = 'gate',
+        depthwise_conv: bool = False
     ):
         super(ResUNet3Psi, self).__init__()
 
@@ -815,22 +816,26 @@ class ResUNet3Psi(torch.nn.Module):
         self.conv1_0 = PoolResidualConv(
             channels[0],
             channels[1],
-            dilations=dilations
+            dilations=dilations,
+            depthwise_conv=depthwise_conv
         )
         self.conv2_0 = PoolResidualConv(
             channels[1],
             channels[2],
-            dilations=dilations
+            dilations=dilations,
+            depthwise_conv=depthwise_conv
         )
         self.conv3_0 = PoolResidualConv(
             channels[2],
             channels[3],
-            dilations=dilations
+            dilations=dilations,
+            depthwise_conv=depthwise_conv
         )
         self.conv4_0 = PoolResidualConv(
             channels[3],
             channels[4],
-            dilations=dilations
+            dilations=dilations,
+            depthwise_conv=depthwise_conv
         )
 
         # Connect 3
@@ -839,28 +844,32 @@ class ResUNet3Psi(torch.nn.Module):
             up_channels=up_channels,
             dilations=dilations,
             attention=attention,
-            attention_weights=attention_weights
+            attention_weights=attention_weights,
+            depthwise_conv=depthwise_conv
         )
         self.convs_2_2 = ResUNet3_2_2(
             channels=channels,
             up_channels=up_channels,
             dilations=dilations,
             attention=attention,
-            attention_weights=attention_weights
+            attention_weights=attention_weights,
+            depthwise_conv=depthwise_conv
         )
         self.convs_1_3 = ResUNet3_1_3(
             channels=channels,
             up_channels=up_channels,
             dilations=dilations,
             attention=attention,
-            attention_weights=attention_weights
+            attention_weights=attention_weights,
+            depthwise_conv=depthwise_conv
         )
         self.convs_0_4 = ResUNet3_0_4(
             channels=channels,
             up_channels=up_channels,
             dilations=dilations,
             attention=attention,
-            attention_weights=attention_weights
+            attention_weights=attention_weights,
+            depthwise_conv=depthwise_conv
         )
 
         self.final_dist = torch.nn.Sequential(
