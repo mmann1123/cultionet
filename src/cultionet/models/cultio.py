@@ -146,10 +146,10 @@ class CultioNet(torch.nn.Module):
                 out_edge_channels=2,
                 out_mask_channels=out_mask_channels,
                 init_filter=self.filters,
-                attention=True,
+                attention=False,
                 attention_weights='gate',
                 atrous_spatial_pyramid=True,
-                depthwise_conv=False
+                depthwise_conv=True
             )
         else:
             raise NameError('Model type not supported.')
