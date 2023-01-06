@@ -787,6 +787,7 @@ class ResUNet3Psi(torch.nn.Module):
         dilations: T.List[int] = None,
         attention: bool = False,
         attention_weights: str = 'gate',
+        atrous_spatial_pyramid: bool = False,
         depthwise_conv: bool = False
     ):
         super(ResUNet3Psi, self).__init__()
@@ -865,6 +866,7 @@ class ResUNet3Psi(torch.nn.Module):
             dilations=dilations,
             attention=attention,
             attention_weights=attention_weights,
+            atrous_spatial_pyramid=atrous_spatial_pyramid,
             depthwise_conv=depthwise_conv
         )
 

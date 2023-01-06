@@ -535,6 +535,7 @@ class ResUNet3Connector(torch.nn.Module):
         dilations: T.List[int] = None,
         attention: bool = False,
         attention_weights: str = 'gate',
+        atrous_spatial_pyramid: bool = False,
         depthwise_conv: bool = False
     ):
         super(ResUNet3Connector, self).__init__()
@@ -574,12 +575,19 @@ class ResUNet3Connector(torch.nn.Module):
                 self.cat_channels += channels[0]
         # Previous output, same level
         if is_side_stream:
-            self.prev = ResidualConv(
-                up_channels,
-                up_channels,
-                dilations=dilations,
-                depthwise_conv=depthwise_conv
-            )
+            if atrous_spatial_pyramid:
+                self.prev = AtrousSpatialPyramid(
+                    up_channels,
+                    up_channels,
+                    dilations=[1, 2, 3, 4]
+                )
+            else:
+                self.prev = ResidualConv(
+                    up_channels,
+                    up_channels,
+                    dilations=dilations,
+                    depthwise_conv=depthwise_conv
+                )
         else:
             # Backbone, same level
             self.prev_backbone = ResidualConv(
@@ -969,6 +977,7 @@ class ResUNet3_0_4(torch.nn.Module):
         dilations: T.List[int] = None,
         attention: bool = False,
         attention_weights: str = 'gate',
+        atrous_spatial_pyramid: bool = False,
         depthwise_conv: T.Optional[bool] = False
     ):
         super(ResUNet3_0_4, self).__init__()
@@ -982,6 +991,7 @@ class ResUNet3_0_4(torch.nn.Module):
             prev_backbone_channel_index=0,
             n_stream_down=3,
             dilations=dilations,
+            atrous_spatial_pyramid=atrous_spatial_pyramid,
             depthwise_conv=depthwise_conv
         )
         self.conv_edge = ResUNet3Connector(
@@ -993,6 +1003,7 @@ class ResUNet3_0_4(torch.nn.Module):
             dilations=dilations,
             attention=attention,
             attention_weights=attention_weights,
+            atrous_spatial_pyramid=atrous_spatial_pyramid,
             depthwise_conv=depthwise_conv
         )
         self.conv_mask = ResUNet3Connector(
@@ -1004,6 +1015,7 @@ class ResUNet3_0_4(torch.nn.Module):
             dilations=dilations,
             attention=attention,
             attention_weights=attention_weights,
+            atrous_spatial_pyramid=atrous_spatial_pyramid,
             depthwise_conv=depthwise_conv
         )
 
