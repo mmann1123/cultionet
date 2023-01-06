@@ -434,13 +434,13 @@ class CultioLitModel(pl.LightningModule):
         num_classes: int = 2,
         filters: int = 32,
         star_rnn_n_layers: int = 4,
-        optimizer: str = 'AdamW',
+        optimizer: str = 'SGD',
         learning_rate: float = 1e-4,
         weight_decay: float = 0.01,
         eps: float = 1e-8,
         ckpt_name: str = 'last',
         model_name: str = 'cultionet',
-        model_type: str = 'UNet3Psi',
+        model_type: str = 'ResUNet3Psi',
         class_weights: T.Sequence[float] = None,
         edge_weights: T.Sequence[float] = None,
         edge_class: T.Optional[int] = None,
@@ -904,7 +904,7 @@ class CultioLitModel(pl.LightningModule):
             )
         else:
             raise NameError("Choose either 'AdamW' or 'SGD'.")
-        
+
         lr_scheduler = ReduceLROnPlateau(
             optimizer,
             factor=0.1,
