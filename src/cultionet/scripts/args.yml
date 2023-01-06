@@ -87,10 +87,6 @@ shared_create:
     kwargs:
       default: 10.0
       type: '&float'
-  region:
-    short: ''
-    long: region
-    help: A region name to search .pt files by (only needed if --data-path is not None)
   feature_pattern:
     short: ''
     long: feature-pattern
@@ -333,13 +329,6 @@ skfoldcv:
     kwargs:
       default: 0
       type: '&int'
-  num_workers:
-    short: 'n'
-    long: num-workers
-    help: The number of CPUs for data normalization values
-    kwargs:
-      default: 1
-      type: '&int'
 
 train:
   val_frac:
@@ -374,13 +363,6 @@ train:
     short: t
     long: threads
     help: The number of threads per process worker
-    kwargs:
-      default: 1
-      type: '&int'
-  num_workers:
-    short: 'n'
-    long: num-workers
-    help: The number of CPUs for data normalization values
     kwargs:
       default: 1
       type: '&int'
@@ -530,6 +512,10 @@ predict:
     help: |
       A data path with PyTorch .pt files to predict on
       (if given, overrides --grid-id, --window-size, --padding, --gain, --offset, --append-ts)
+  region:
+    short: ''
+    long: region
+    help: A region name to search .pt files by (only needed if --data-path is not None)
   reference_image:
     short: ''
     long: ref-image
