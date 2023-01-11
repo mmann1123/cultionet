@@ -66,41 +66,6 @@ class DepthwiseConv2d(torch.nn.Module):
         return self.seq(x)
 
 
-class DepthwiseConvBlock2d(torch.nn.Module):
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        kernel_size: int,
-        padding: int = 0,
-        dilation: int = 1,
-        add_activation: bool = True,
-        activation_type: str = 'LeakyReLU'
-    ):
-        super(DepthwiseConvBlock2d, self).__init__()
-
-        layers = [
-            DepthwiseConv2d(
-                in_channels,
-                out_channels,
-                kernel_size=kernel_size,
-                padding=padding,
-                dilation=dilation,
-                bias=False
-            ),
-            torch.nn.BatchNorm2d(out_channels)
-        ]
-        if add_activation:
-            layers += [
-                getattr(torch.nn, activation_type)(inplace=False)
-            ]
-
-        self.seq = torch.nn.Sequential(*layers)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.seq(x)
-
-
 class ConvBlock2d(torch.nn.Module):
     def __init__(
         self,
@@ -521,7 +486,8 @@ class AtrousSpatialPyramid(torch.nn.Module):
         self,
         in_channels: int,
         out_channels: int,
-        dilations: T.Sequence[int]
+        dilations: T.Sequence[int],
+        activation_type: str = 'LeakyReLU'
     ):
         super(AtrousSpatialPyramid, self).__init__()
 
@@ -532,7 +498,8 @@ class AtrousSpatialPyramid(torch.nn.Module):
                     out_channels=out_channels,
                     kernel_size=3,
                     padding=dilation,
-                    dilation=dilation
+                    dilation=dilation,
+                    activation_type=activation_type
                 ) for dilation in dilations
             ]
         )
@@ -541,7 +508,8 @@ class AtrousSpatialPyramid(torch.nn.Module):
             in_channels=final_in_channels,
             out_channels=out_channels,
             kernel_size=1,
-            padding=0
+            padding=0,
+            activation_type=activation_type
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -562,26 +530,29 @@ class DoubleConv(torch.nn.Module):
         kernel_size: int = 3,
         padding: int = 1,
         dilation: int = 1,
+        activation_type: str = 'LeakyReLU',
         depthwise_conv: bool = False
     ):
         super(DoubleConv, self).__init__()
 
-        convolution = DepthwiseConvBlock2d if depthwise_conv else ConvBlock2d
-
         self.seq = torch.nn.Sequential(
-            convolution(
+            ConvBlock2d(
                 in_channels=in_channels,
                 out_channels=out_channels,
                 kernel_size=kernel_size,
                 padding=padding,
-                dilation=dilation
+                dilation=dilation,
+                activation_type=activation_type,
+                depthwise_conv=depthwise_conv
             ),
-            convolution(
+            ConvBlock2d(
                 in_channels=out_channels,
                 out_channels=out_channels,
                 kernel_size=kernel_size,
                 padding=padding,
-                dilation=dilation
+                dilation=dilation,
+                activation_type=activation_type,
+                depthwise_conv=depthwise_conv
             )
         )
 
@@ -596,7 +567,8 @@ class PoolConvSingle(torch.nn.Module):
         self,
         in_channels: int,
         out_channels: int,
-        pool_size: int = 2
+        pool_size: int = 2,
+        activation_type: str = 'LeakyReLU'
     ):
         super(PoolConvSingle, self).__init__()
 
@@ -606,7 +578,8 @@ class PoolConvSingle(torch.nn.Module):
                 in_channels=in_channels,
                 out_channels=out_channels,
                 kernel_size=3,
-                padding=1
+                padding=1,
+                activation_type=activation_type
             )
         )
 
@@ -649,7 +622,8 @@ class ResidualConvInit(torch.nn.Module):
     def __init__(
         self,
         in_channels: int,
-        out_channels: int
+        out_channels: int,
+        activation_type: str = 'LeakyReLU'
     ):
         super(ResidualConvInit, self).__init__()
 
@@ -657,7 +631,8 @@ class ResidualConvInit(torch.nn.Module):
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=3,
-            padding=1
+            padding=1,
+            activation_type=activation_type
         )
         self.skip = ConvBlock2d(
             in_channels=in_channels,
@@ -665,9 +640,13 @@ class ResidualConvInit(torch.nn.Module):
             kernel_size=1,
             add_activation=False
         )
+        self.activation = getattr(torch.nn, activation_type)(inplace=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.seq(x) + self.skip(x)
+        h = self.seq(x) + self.skip(x)
+        h = self.activation(h)
+
+        return h
 
 
 class ResidualConv(torch.nn.Module):
@@ -677,36 +656,23 @@ class ResidualConv(torch.nn.Module):
         self,
         in_channels: int,
         out_channels: int,
-        init_conv: bool = False,
         channel_attention: bool = False,
         dilations: T.List[int] = None,
+        activation_type: str = 'LeakyReLU',
         depthwise_conv: T.Optional[bool] = False
     ):
         super(ResidualConv, self).__init__()
 
         init_in_channels = in_channels
-        self.depthwise_conv = depthwise_conv
 
-        layers = []
-        if init_conv:
-            layers += [
-                ConvBlock2d(
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    kernel_size=3,
-                    padding=1,
-                    depthwise_conv=depthwise_conv
-                )
-            ]
-            in_channels = out_channels
-
-        layers += [
+        # https://github.com/pytorch/vision/blob/348f75ceb5b971dda7a2695c285bd5f8d4277069/torchvision/models/resnet.py#L57
+        layers = [
             ConvBlock2d(
                 in_channels=in_channels,
                 out_channels=out_channels,
                 kernel_size=3,
                 padding=1,
-                depthwise_conv=depthwise_conv
+                activation_type=activation_type
             )
         ]
         if dilations is not None:
@@ -718,6 +684,7 @@ class ResidualConv(torch.nn.Module):
                         kernel_size=3,
                         padding=dilation,
                         dilation=dilation,
+                        activation_type=activation_type,
                         depthwise_conv=depthwise_conv
                     )
                 ]
@@ -730,10 +697,9 @@ class ResidualConv(torch.nn.Module):
             in_channels=init_in_channels,
             out_channels=out_channels,
             kernel_size=1,
-            add_activation=False,
-            depthwise_conv=depthwise_conv
+            add_activation=False
         )
-        self.activation = torch.nn.LeakyReLU(inplace=False)
+        self.activation = getattr(torch.nn, activation_type)(inplace=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.seq(x) + self.skip(x)
@@ -803,6 +769,7 @@ class PoolResidualConv(torch.nn.Module):
         out_channels: int,
         pool_size: int = 2,
         dropout: T.Optional[float] = None,
+        activation_type: str = 'LeakyReLU',
         dilations: T.Optional[T.List[int]] = None,
         channel_attention: T.Optional[bool] = False,
         res_blocks: T.Optional[int] = 0,
@@ -839,6 +806,7 @@ class PoolResidualConv(torch.nn.Module):
                     out_channels,
                     channel_attention=channel_attention,
                     dilations=dilations,
+                    activation_type=activation_type,
                     depthwise_conv=depthwise_conv
                 )
             ]
@@ -855,7 +823,8 @@ class SingleConv(torch.nn.Module):
     def __init__(
         self,
         in_channels: int,
-        out_channels: int
+        out_channels: int,
+        activation_type: str = 'LeakyReLU'
     ):
         super(SingleConv, self).__init__()
 
@@ -863,7 +832,8 @@ class SingleConv(torch.nn.Module):
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=3,
-            padding=1
+            padding=1,
+            activation_type=activation_type
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

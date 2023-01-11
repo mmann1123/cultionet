@@ -32,6 +32,17 @@ from .unet_parts import (
 import torch
 
 
+def init_params(module: object, activation_type: str):
+    if isinstance(module, (torch.nn.Conv2d, torch.nn.Conv3d)):
+        torch.nn.init.kaiming_normal_(
+            module.weight,
+            nonlinearity='leaky_relu' if activation_type.lower() == 'leakyrelu' else activation_type.lower()
+        )
+    elif isinstance(module, (torch.nn.BatchNorm2d, torch.nn.BatchNorm3d)):
+        torch.nn.init.normal_(module.weight.data, 1.0, 0.02)
+        torch.nn.init.constant_(module.bias.data, 0.0)
+
+
 def weights_init_kaiming(m: object, nonlinearity: str = 'leaky_relu'):
     """
     Source:
@@ -785,6 +796,7 @@ class ResUNet3Psi(torch.nn.Module):
         out_mask_channels: int = 2,
         init_filter: int = 64,
         dilations: T.List[int] = None,
+        activation_type: str = 'SiLU',
         attention: bool = False,
         attention_weights: str = 'gate',
         atrous_spatial_pyramid: bool = False,
@@ -808,44 +820,59 @@ class ResUNet3Psi(torch.nn.Module):
 
         self.conv0_0 = ResidualConvInit(
             in_channels,
-            channels[0]
+            channels[0],
+            activation_type=activation_type
         )
         self.conv1_0 = PoolResidualConv(
             channels[0],
             channels[1],
-            dilations=dilations
+            dilations=dilations,
+            activation_type=activation_type,
+            depthwise_conv=depthwise_conv
         )
         self.conv2_0 = PoolResidualConv(
             channels[1],
             channels[2],
-            dilations=dilations
+            dilations=dilations,
+            activation_type=activation_type,
+            depthwise_conv=depthwise_conv
         )
         self.conv3_0 = PoolResidualConv(
             channels[2],
             channels[3],
-            dilations=dilations
+            dilations=dilations,
+            activation_type=activation_type,
+            depthwise_conv=depthwise_conv
         )
         self.conv4_0 = PoolResidualConv(
             channels[3],
             channels[4],
-            dilations=dilations
+            dilations=dilations,
+            activation_type=activation_type,
+            depthwise_conv=depthwise_conv
         )
 
         # Connect 3
         self.convs_3_1 = ResUNet3_3_1(
             channels=channels,
             up_channels=up_channels,
-            dilations=dilations
+            dilations=dilations,
+            activation_type=activation_type,
+            depthwise_conv=depthwise_conv
         )
         self.convs_2_2 = ResUNet3_2_2(
             channels=channels,
             up_channels=up_channels,
-            dilations=dilations
+            dilations=dilations,
+            activation_type=activation_type,
+            depthwise_conv=depthwise_conv
         )
         self.convs_1_3 = ResUNet3_1_3(
             channels=channels,
             up_channels=up_channels,
-            dilations=dilations
+            dilations=dilations,
+            activation_type=activation_type,
+            depthwise_conv=depthwise_conv
         )
         self.convs_0_4 = ResUNet3_0_4(
             channels=channels,
@@ -853,8 +880,9 @@ class ResUNet3Psi(torch.nn.Module):
             dilations=dilations,
             attention=attention,
             attention_weights=attention_weights,
-            atrous_spatial_pyramid=atrous_spatial_pyramid,
-            depthwise_conv=depthwise_conv
+            activation_type=activation_type,
+            depthwise_conv=depthwise_conv,
+            atrous_spatial_pyramid=atrous_spatial_pyramid
         )
 
         self.final_dist = torch.nn.Sequential(
@@ -881,8 +909,7 @@ class ResUNet3Psi(torch.nn.Module):
 
         # Initialise weights
         for m in self.modules():
-            if isinstance(m, (torch.nn.Conv2d, torch.nn.BatchNorm2d)):
-                m.apply(weights_init_kaiming)
+            init_params(m, activation_type=activation_type)
 
     def forward(
         self, x: torch.Tensor
