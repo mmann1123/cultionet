@@ -835,23 +835,17 @@ class ResUNet3Psi(torch.nn.Module):
         self.convs_3_1 = ResUNet3_3_1(
             channels=channels,
             up_channels=up_channels,
-            dilations=dilations,
-            attention=attention,
-            attention_weights=attention_weights
+            dilations=dilations
         )
         self.convs_2_2 = ResUNet3_2_2(
             channels=channels,
             up_channels=up_channels,
-            dilations=dilations,
-            attention=attention,
-            attention_weights=attention_weights
+            dilations=dilations
         )
         self.convs_1_3 = ResUNet3_1_3(
             channels=channels,
             up_channels=up_channels,
-            dilations=dilations,
-            attention=attention,
-            attention_weights=attention_weights
+            dilations=dilations
         )
         self.convs_0_4 = ResUNet3_0_4(
             channels=channels,
