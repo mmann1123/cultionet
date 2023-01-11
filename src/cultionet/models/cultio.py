@@ -163,7 +163,7 @@ class CultioNet(torch.nn.Module):
         height = int(data.height) if data.batch is None else int(data.height[0])
         width = int(data.width) if data.batch is None else int(data.width[0])
         batch_size = 1 if data.batch is None else data.batch.unique().size(0)
-        import ipdb; ipdb.set_trace()
+
         time_stream = self.gc(
             data.x, batch_size, height, width
         )
