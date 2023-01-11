@@ -43,7 +43,7 @@ class DepthwiseConv2d(torch.nn.Module):
     ):
         super(DepthwiseConv2d, self).__init__()
 
-        layers = [
+        self.seq = torch.nn.Sequential(
             torch.nn.Conv2d(
                 in_channels,
                 in_channels,
@@ -60,8 +60,7 @@ class DepthwiseConv2d(torch.nn.Module):
                 padding=0,
                 bias=bias
             )
-        ]
-        self.seq = torch.nn.Sequential(*layers)
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.seq(x)
@@ -672,7 +671,7 @@ class ResidualConvInit(torch.nn.Module):
 
 
 class ResidualConv(torch.nn.Module):
-    """A residual convolution layer with (optional) attention
+    """A residual convolution layer
     """
     def __init__(
         self,
@@ -686,6 +685,7 @@ class ResidualConv(torch.nn.Module):
         super(ResidualConv, self).__init__()
 
         init_in_channels = in_channels
+        self.depthwise_conv = depthwise_conv
 
         layers = []
         if init_conv:
@@ -701,7 +701,7 @@ class ResidualConv(torch.nn.Module):
             in_channels = out_channels
 
         layers += [
-            ResBlock2d(
+            ConvBlock2d(
                 in_channels=in_channels,
                 out_channels=out_channels,
                 kernel_size=3,
@@ -712,7 +712,7 @@ class ResidualConv(torch.nn.Module):
         if dilations is not None:
             for dilation in dilations:
                 layers += [
-                    ResBlock2d(
+                    ConvBlock2d(
                         in_channels=out_channels,
                         out_channels=out_channels,
                         kernel_size=3,
@@ -733,11 +733,13 @@ class ResidualConv(torch.nn.Module):
             add_activation=False,
             depthwise_conv=depthwise_conv
         )
+        self.activation = torch.nn.LeakyReLU(inplace=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out = self.seq(x) + self.skip(x)
+        h = self.seq(x) + self.skip(x)
+        h = self.activation(h)
 
-        return out
+        return h
 
 
 class ResidualConvRCAB(torch.nn.Module):
