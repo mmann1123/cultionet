@@ -504,6 +504,13 @@ class AtrousSpatialPyramid(torch.nn.Module):
             ]
         )
         final_in_channels = out_channels * len(dilations)
+        self.skip = ConvBlock2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=1,
+            add_activation=False
+        )
+        self.activation = getattr(torch.nn, activation_type)(inplace=False)
         self.final = ConvBlock2d(
             in_channels=final_in_channels,
             out_channels=out_channels,
@@ -515,7 +522,8 @@ class AtrousSpatialPyramid(torch.nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = [layer(x) for layer in self.layers]
         h = torch.cat(h, dim=1)
-        h = self.final(h)
+        h = self.final(h) + self.skip(x)
+        h = self.activation(h)
 
         return h
 

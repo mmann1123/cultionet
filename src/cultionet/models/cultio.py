@@ -147,10 +147,10 @@ class CultioNet(torch.nn.Module):
                 out_mask_channels=out_mask_channels,
                 init_filter=self.filters,
                 activation_type='SiLU',
-                attention=True,
+                attention=False,
                 attention_weights='gate',
                 atrous_spatial_pyramid=True,
-                depthwise_conv=True
+                depthwise_conv=False
             )
         else:
             raise NameError(

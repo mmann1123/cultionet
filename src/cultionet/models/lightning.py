@@ -434,7 +434,7 @@ class CultioLitModel(pl.LightningModule):
         num_classes: int = 2,
         filters: int = 32,
         star_rnn_n_layers: int = 4,
-        optimizer: str = 'SGD',
+        optimizer: str = 'AdamW',
         learning_rate: float = 1e-4,
         weight_decay: float = 0.01,
         eps: float = 1e-8,
