@@ -34,10 +34,19 @@ import torch
 
 def init_params(module: object, activation_type: str):
     if isinstance(module, (torch.nn.Conv2d, torch.nn.Conv3d)):
-        torch.nn.init.kaiming_normal_(
-            module.weight,
-            nonlinearity='leaky_relu' if activation_type.lower() == 'leakyrelu' else activation_type.lower()
-        )
+        try:
+            torch.nn.init.kaiming_normal_(
+                module.weight,
+                a=0,
+                mode='fan_in',
+                nonlinearity='leaky_relu' if activation_type.lower() == 'leakyrelu' else activation_type.lower()
+            )
+        except ValueError:
+            torch.nn.init.kaiming_normal_(
+                module.weight,
+                a=0,
+                mode='fan_in'
+            )
     elif isinstance(module, (torch.nn.BatchNorm2d, torch.nn.BatchNorm3d)):
         torch.nn.init.normal_(module.weight.data, 1.0, 0.02)
         torch.nn.init.constant_(module.bias.data, 0.0)
