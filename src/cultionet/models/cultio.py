@@ -3,7 +3,8 @@ import typing as T
 from . import model_utils
 from .base_layers import ConvBlock2d
 from .nunet import UNet3Psi, ResUNet3Psi
-from .inception import InceptionNet
+# from .inception import InceptionNet
+from .convstar import StarRNN
 
 import torch
 from torch_geometric.data import Data
@@ -122,10 +123,18 @@ class CultioNet(torch.nn.Module):
             out_mask_channels = 2
             base_in_channels = star_rnn_hidden_dim
 
-        self.inception_model = InceptionNet(
-            in_channels=self.ds_num_bands,
-            out_channels=star_rnn_hidden_dim,
-            num_classes_last=num_classes_last
+        # self.inception_model = InceptionNet(
+        #     in_channels=self.ds_num_bands,
+        #     out_channels=star_rnn_hidden_dim,
+        #     num_classes_last=num_classes_last
+        # )
+        self.star_rnn = StarRNN(
+            input_dim=self.ds_num_bands,
+            hidden_dim=star_rnn_hidden_dim,
+            n_layers=star_rnn_n_layers,
+            num_classes_l2=num_classes_l2,
+            num_classes_last=num_classes_last,
+            crop_type_layer=True if self.num_classes > 2 else False
         )
         if model_type == 'UNet3Psi':
             self.mask_model = UNet3Psi(
@@ -150,7 +159,7 @@ class CultioNet(torch.nn.Module):
                 attention=False,
                 attention_weights='gate',
                 atrous_spatial_pyramid=True,
-                depthwise_conv=False
+                depthwise_conv=True
             )
         else:
             raise NameError(
@@ -176,10 +185,10 @@ class CultioNet(torch.nn.Module):
         # (1) InceptionNet
         # Crop/Non-crop and Crop types
         if self.num_classes > 2:
-            logits_time_h, logits_time_l2, logits_time_last = self.inception_model(time_stream)
+            logits_time_h, logits_time_l2, logits_time_last = self.star_rnn(time_stream)
             logits_time_l2 = self.cg(logits_time_l2)
         else:
-            logits_time_h, logits_time_last = self.inception_model(time_stream)
+            logits_time_h, logits_time_last = self.star_rnn(time_stream)
 
         logits_time_h = self.cg(logits_time_h)
         logits_time_last = self.cg(logits_time_last)
