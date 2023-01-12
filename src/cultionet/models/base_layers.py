@@ -493,7 +493,7 @@ class AtrousSpatialPyramid(torch.nn.Module):
 
         self.layers = torch.nn.ModuleList(
             [
-                ConvBlock2d(
+                ResBlock2d(
                     in_channels=in_channels,
                     out_channels=out_channels,
                     kernel_size=3,
@@ -510,8 +510,7 @@ class AtrousSpatialPyramid(torch.nn.Module):
             kernel_size=1,
             add_activation=False
         )
-        self.activation = getattr(torch.nn, activation_type)(inplace=False)
-        self.final = ConvBlock2d(
+        self.final = ResBlock2d(
             in_channels=final_in_channels,
             out_channels=out_channels,
             kernel_size=1,
@@ -523,7 +522,6 @@ class AtrousSpatialPyramid(torch.nn.Module):
         h = [layer(x) for layer in self.layers]
         h = torch.cat(h, dim=1)
         h = self.final(h) + self.skip(x)
-        h = self.activation(h)
 
         return h
 
@@ -635,12 +633,20 @@ class ResidualConvInit(torch.nn.Module):
     ):
         super(ResidualConvInit, self).__init__()
 
-        self.seq = ConvBlock2d(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=3,
-            padding=1,
-            activation_type=activation_type
+        self.seq = torch.nn.Sequential(
+            ConvBlock2d(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=3,
+                padding=1,
+                activation_type=activation_type
+            ),
+            torch.nn.Conv2d(
+                out_channels,
+                out_channels,
+                kernel_size=3,
+                padding=1
+            )
         )
         self.skip = ConvBlock2d(
             in_channels=in_channels,
@@ -648,11 +654,9 @@ class ResidualConvInit(torch.nn.Module):
             kernel_size=1,
             add_activation=False
         )
-        self.activation = getattr(torch.nn, activation_type)(inplace=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.seq(x) + self.skip(x)
-        h = self.activation(h)
 
         return h
 
@@ -675,7 +679,7 @@ class ResidualConv(torch.nn.Module):
 
         # https://github.com/pytorch/vision/blob/348f75ceb5b971dda7a2695c285bd5f8d4277069/torchvision/models/resnet.py#L57
         layers = [
-            ConvBlock2d(
+            ResBlock2d(
                 in_channels=in_channels,
                 out_channels=out_channels,
                 kernel_size=3,
@@ -686,7 +690,7 @@ class ResidualConv(torch.nn.Module):
         if dilations is not None:
             for dilation in dilations:
                 layers += [
-                    ConvBlock2d(
+                    ResBlock2d(
                         in_channels=out_channels,
                         out_channels=out_channels,
                         kernel_size=3,
@@ -707,11 +711,9 @@ class ResidualConv(torch.nn.Module):
             kernel_size=1,
             add_activation=False
         )
-        self.activation = getattr(torch.nn, activation_type)(inplace=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.seq(x) + self.skip(x)
-        h = self.activation(h)
 
         return h
 
