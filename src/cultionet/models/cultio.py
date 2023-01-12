@@ -159,7 +159,7 @@ class CultioNet(torch.nn.Module):
                 attention=False,
                 attention_weights='gate',
                 atrous_spatial_pyramid=True,
-                depthwise_conv=True
+                depthwise_conv=False
             )
         else:
             raise NameError(
