@@ -394,8 +394,8 @@ class TemperatureScaling(pl.LightningModule):
                 f.write(json.dumps(temperature_scales))
 
     def configure_loss(self):
-        self.edge_loss = TanimotoDistLoss()
-        self.crop_loss = TanimotoDistLoss()
+        self.edge_loss = TanimotoDistLoss(scale_pos_weight=True)
+        self.crop_loss = TanimotoDistLoss(scale_pos_weight=True)
 
     def configure_optimizers(self):
         optimizer = torch.optim.LBFGS(
